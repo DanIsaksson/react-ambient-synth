@@ -10,6 +10,8 @@ import { EuclideanGrooveScene } from './audio/scenes/EuclideanGrooveScene';
 import { GravityPhasingScene } from './audio/scenes/GravityPhasingScene';
 import { Scene3D } from './components/visualizers/Scene3D';
 import { NodeEditor } from './components/nodegraph/NodeEditor';
+import { HolographicButton } from './components/controls';
+import { LayoutGrid, Play, Square } from 'lucide-react';
 import './App.css';
 
 function App() {
@@ -152,38 +154,33 @@ function App() {
           {/* Header */}
           <header className="flex justify-between items-start pointer-events-auto">
             <div>
-              <h1 className="text-4xl font-light tracking-widest uppercase opacity-90">Ambient Flow</h1>
-              <p className="text-xs text-gray-400 mt-1 tracking-wider">Generative Audio Workstation // v2.0</p>
+              <h1 className="text-4xl font-display font-bold tracking-widest uppercase text-neon-cyan"
+                  style={{ textShadow: '0 0 20px rgba(0, 204, 255, 0.5)' }}>
+                Ambient Flow
+              </h1>
+              <p className="text-xs font-mono text-muted-light mt-1 tracking-wider">
+                Generative Audio Workstation // v2.0
+              </p>
             </div>
             <div className="flex items-center gap-3">
-              <button
+              <HolographicButton
                 onClick={() => setViewMode('graph')}
-                className="px-4 py-2 rounded-md border border-white/20 backdrop-blur-md 
-                  transition-all duration-300 hover:bg-white/10 text-xs uppercase tracking-wider"
+                color="purple"
+                size="md"
+                icon={<LayoutGrid size={16} />}
               >
-                📊 Graph Mode
-              </button>
-              <button
+                Graph Mode
+              </HolographicButton>
+              <HolographicButton
                 onClick={handleTogglePlay}
-                className={`
-                  px-8 py-3 rounded-full border border-white/20 backdrop-blur-md 
-                  transition-all duration-300 hover:bg-white/10 hover:scale-105 active:scale-95
-                  flex items-center gap-3 uppercase tracking-widest text-sm
-                  ${isPlaying ? 'bg-white/10 shadow-[0_0_30px_rgba(255,255,255,0.1)]' : 'bg-transparent'}
-                `}
+                color={isPlaying ? 'green' : 'cyan'}
+                size="lg"
+                pill
+                isActive={isPlaying}
+                icon={isPlaying ? <Square size={18} /> : <Play size={18} />}
               >
-                {isPlaying ? (
-                  <>
-                    <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse shadow-[0_0_10px_#4ade80]" />
-                    Stop
-                  </>
-                ) : (
-                  <>
-                    <span className="w-0 h-0 border-t-[5px] border-t-transparent border-l-[8px] border-l-white border-b-[5px] border-b-transparent ml-1" />
-                    Start
-                  </>
-                )}
-              </button>
+                {isPlaying ? 'Stop' : 'Start'}
+              </HolographicButton>
             </div>
           </header>
 
@@ -224,14 +221,14 @@ function App() {
           </main>
 
           {/* Footer Status */}
-          <footer className="flex justify-between items-end text-xs text-gray-500 pointer-events-auto">
-            <div className="flex gap-4">
-              <span>CPU: 12%</span>
-              <span>DSP: 44.1kHz</span>
-              <span>Voices: 2</span>
+          <footer className="flex justify-between items-end text-xs font-mono pointer-events-auto">
+            <div className="flex gap-4 text-muted">
+              <span>CPU: <span className="text-neon-cyan">12%</span></span>
+              <span>DSP: <span className="text-neon-cyan">44.1kHz</span></span>
+              <span>Voices: <span className="text-neon-cyan">2</span></span>
             </div>
-            <div className="text-right">
-              <p>System Status: <span className="text-green-500">Active</span></p>
+            <div className="text-right text-muted">
+              <p>System Status: <span className="text-neon-green" style={{ textShadow: '0 0 8px rgba(0, 255, 136, 0.5)' }}>● Active</span></p>
             </div>
           </footer>
         </div>
