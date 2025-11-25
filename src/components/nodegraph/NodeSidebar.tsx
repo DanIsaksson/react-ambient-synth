@@ -14,9 +14,15 @@ interface ModuleDef {
 const MODULES: ModuleDef[] = [
     { type: 'oscillator', label: 'OSC', rgb: '6,182,212', iconPath: 'M2 12c2-4 4-8 6 0s4 4 6 0 4-8 6 0' },
     { type: 'karplus', label: 'STR', rgb: '236,72,153', iconPath: 'M12 4v16M8 6v12M16 6v12M5 9v6M19 9v6' },
+    { type: 'texture', label: 'TXT', rgb: '34,211,238', iconPath: 'M12 3c-4 0-8 3-8 8s4 8 8 8 8-4 8-8-4-8-8-8zM8 10a1 1 0 100 2 1 1 0 000-2zM16 12a1 1 0 100 2 1 1 0 000-2zM12 14a1 1 0 100 2 1 1 0 000-2z' },
+    { type: 'resonator', label: 'RES', rgb: '167,139,250', iconPath: 'M12 3v18M6 6v12M18 6v12M3 9v6M21 9v6' },
     { type: 'filter', label: 'FLT', rgb: '168,85,247', iconPath: 'M3 12h4l2-6 4 12 2-6h6' },
     { type: 'envelope', label: 'ENV', rgb: '245,158,11', iconPath: 'M3 18l4-10 3 4 4-8 4 14' },
+    { type: 'lfo', label: 'LFO', rgb: '139,92,246', iconPath: 'M2 12c1.5-3 3-6 4.5 0s3 3 4.5 0 3-6 4.5 0 3 3 4.5 0' },
+    { type: 'noise', label: 'NSE', rgb: '16,185,129', iconPath: 'M2 12c0.5-1 1-2 1.5-1s1 2 1.5 0 1-3 1.5-1 1 2 1.5 0 1-2 1.5-1 1 3 1.5 0 1-2 1.5-1 1 2 1.5 0 1-2 1.5-1' },
+    { type: 'spatial', label: '3D', rgb: '56,189,248', iconPath: 'M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5' },
     { type: 'sequencer', label: 'SEQ', rgb: '249,115,22', iconPath: 'M4 16v4M8 12v8M12 8v12M16 14v6M20 10v10' },
+    { type: 'euclidean', label: 'EUC', rgb: '251,146,60', iconPath: 'M12 2a10 10 0 100 20 10 10 0 000-20zM12 6v6l4 2' },
     { type: 'physics', label: 'PHY', rgb: '20,184,166', iconPath: 'M12 4a4 4 0 100 8 4 4 0 000-8zM12 14v6' },
     { type: 'output', label: 'OUT', rgb: '16,185,129', iconPath: 'M6 10v4M10 8v8M14 6v12M18 9v6' },
 ];

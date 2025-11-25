@@ -1,12 +1,40 @@
-import { memo, useState, useEffect, useRef } from 'react';
+import { memo, useState, useEffect, useRef, useCallback } from 'react';
 import { BaseNode, HANDLE_PRESETS } from './BaseNode';
+import { useNodeGraphStore } from '../../../store/nodeGraphStore';
 
-export const PhysicsNode = memo(({ data, selected }: { data: any; selected?: boolean }) => {
-    const [gravity, setGravity] = useState(data.gravity || 9.8);
-    const [restitution, setRestitution] = useState(data.restitution || 0.7);
-    const [friction, setFriction] = useState(data.friction || 0.1);
+interface PhysicsNodeProps {
+    id: string;
+    data: {
+        gravity?: number;
+        restitution?: number;
+        friction?: number;
+        [key: string]: any;
+    };
+    selected?: boolean;
+}
+
+export const PhysicsNode = memo(({ id, data, selected }: PhysicsNodeProps) => {
+    const updateNodeData = useNodeGraphStore(state => state.updateNodeData);
     
-    // Ball animation state
+    // Read directly from Zustand store (NOT from ReactFlow's potentially stale props)
+    const gravity = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.gravity ?? 9.8);
+    const restitution = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.restitution ?? 0.7);
+    const friction = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.friction ?? 0.1);
+
+    // Handlers
+    const handleGravityChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        updateNodeData(id, { gravity: Number(e.target.value) });
+    }, [id, updateNodeData]);
+
+    const handleRestitutionChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        updateNodeData(id, { restitution: Number(e.target.value) });
+    }, [id, updateNodeData]);
+
+    const handleFrictionChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        updateNodeData(id, { friction: Number(e.target.value) });
+    }, [id, updateNodeData]);
+    
+    // Ball animation state (local - visual only)
     const [ballY, setBallY] = useState(10);
     const velocityRef = useRef(0);
     const animRef = useRef<number | null>(null);
@@ -56,6 +84,7 @@ export const PhysicsNode = memo(({ data, selected }: { data: any; selected?: boo
             title="Physics" 
             type="control" 
             selected={selected}
+            nodeId={id}
             handles={HANDLE_PRESETS.physics}
             icon="⚛️"
         >
@@ -86,7 +115,7 @@ export const PhysicsNode = memo(({ data, selected }: { data: any; selected?: boo
                         max="20"
                         step="0.1"
                         value={gravity}
-                        onChange={(e) => setGravity(Number(e.target.value))}
+                        onChange={handleGravityChange}
                         className={sliderClass}
                     />
                 </div>
@@ -103,7 +132,7 @@ export const PhysicsNode = memo(({ data, selected }: { data: any; selected?: boo
                         max="1.2"
                         step="0.05"
                         value={restitution}
-                        onChange={(e) => setRestitution(Number(e.target.value))}
+                        onChange={handleRestitutionChange}
                         className={sliderClass}
                     />
                 </div>
@@ -120,7 +149,7 @@ export const PhysicsNode = memo(({ data, selected }: { data: any; selected?: boo
                         max="1"
                         step="0.01"
                         value={friction}
-                        onChange={(e) => setFriction(Number(e.target.value))}
+                        onChange={handleFrictionChange}
                         className={sliderClass}
                     />
                 </div>

@@ -1,15 +1,46 @@
-import { memo, useState } from 'react';
+import { memo, useCallback } from 'react';
 import { BaseNode, HANDLE_PRESETS } from './BaseNode';
+import { useNodeGraphStore } from '../../../store/nodeGraphStore';
 
-export const OscillatorNode = memo(({ data, selected }: { data: any; selected?: boolean }) => {
-    const [freq, setFreq] = useState(data.freq || 440);
-    const [waveform, setWaveform] = useState(data.waveform || 'sine');
+interface OscillatorNodeProps {
+    id: string;
+    data: {
+        freq?: number;
+        waveform?: string;
+        [key: string]: any;
+    };
+    selected?: boolean;
+}
+
+export const OscillatorNode = memo(({ id, data, selected }: OscillatorNodeProps) => {
+    const updateNodeData = useNodeGraphStore(state => state.updateNodeData);
+    
+    // Read directly from Zustand store (NOT from ReactFlow's potentially stale props)
+    // This ensures the slider always reflects the latest committed value
+    const freq = useNodeGraphStore(state => {
+        const node = state.nodes.find(n => n.id === id);
+        return node?.data?.freq ?? 440;
+    });
+    const waveform = useNodeGraphStore(state => {
+        const node = state.nodes.find(n => n.id === id);
+        return node?.data?.waveform ?? 'sine';
+    });
+
+    // Handler updates store directly - no local state needed
+    const handleFreqChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        updateNodeData(id, { freq: Number(e.target.value) });
+    }, [id, updateNodeData]);
+
+    const handleWaveformChange = useCallback((wave: string) => {
+        updateNodeData(id, { waveform: wave });
+    }, [id, updateNodeData]);
 
     return (
         <BaseNode 
             title="Oscillator" 
             type="source" 
             selected={selected}
+            nodeId={id}
             handles={HANDLE_PRESETS.sourceOnly}
             icon="〰️"
         >
@@ -25,8 +56,8 @@ export const OscillatorNode = memo(({ data, selected }: { data: any; selected?: 
                         min="20"
                         max="2000"
                         value={freq}
-                        onChange={(e) => setFreq(Number(e.target.value))}
-                        className="w-full h-1.5 bg-gray-800 rounded-full appearance-none cursor-pointer
+                        onChange={handleFreqChange}
+                        className="nodrag nopan w-full h-1.5 bg-gray-800 rounded-full appearance-none cursor-pointer
                             [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3
                             [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-cyan-500
                             [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(6,182,212,0.5)]
@@ -42,7 +73,7 @@ export const OscillatorNode = memo(({ data, selected }: { data: any; selected?: 
                         {['sine', 'square', 'sawtooth', 'triangle'].map((wave) => (
                             <button
                                 key={wave}
-                                onClick={() => setWaveform(wave)}
+                                onClick={() => handleWaveformChange(wave)}
                                 style={{
                                     padding: '6px 8px',
                                     fontSize: 9,

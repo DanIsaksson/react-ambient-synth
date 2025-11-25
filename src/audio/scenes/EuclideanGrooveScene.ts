@@ -62,15 +62,34 @@ export class EuclideanGrooveScene implements SoundScene {
         } else if (param === 'tension') {
             // Map 0-1 to 0.05 - 0.5 decay
             this.tension = 0.05 + (value * 0.45);
+        } else if (param === 'pulseSpeed') {
+            // Map 0-1 to 60-180 BPM (also connects to Rhythm panel)
+            this.tempo = 60 + (value * 120);
+        } else if (param === 'pulseDepth') {
+            // Map to kick density (0-1 to 2-8 pulses)
+            const kickPulses = Math.floor(2 + value * 6);
+            if (this.kickGen.pulses !== kickPulses) {
+                this.kickGen.pulses = kickPulses;
+                this.calculatePattern(this.kickGen);
+            }
         }
     }
 
     private scheduler() {
         if (!this.context || !this.isPlaying) return;
 
+        const now = this.context.currentTime;
+
+        // Drift compensation: if we've fallen too far behind, resync
+        // This prevents catch-up bursts after tab backgrounding or CPU spikes
+        if (now - this.nextNoteTime > 0.5) {
+            console.warn('[EuclideanGroove] Timing drift detected, resyncing');
+            this.nextNoteTime = now + 0.05;
+        }
+
         // While there are notes that will need to play before the next interval,
         // schedule them and advance the pointer.
-        while (this.nextNoteTime < this.context.currentTime + this.scheduleAheadTime) {
+        while (this.nextNoteTime < now + this.scheduleAheadTime) {
             this.scheduleNote(this.nextNoteTime);
             this.nextStep();
         }

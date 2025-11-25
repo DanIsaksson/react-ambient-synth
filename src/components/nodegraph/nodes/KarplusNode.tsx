@@ -1,17 +1,47 @@
 import { memo, useState, useCallback } from 'react';
 import { BaseNode, HANDLE_PRESETS } from './BaseNode';
+import { useNodeGraphStore } from '../../../store/nodeGraphStore';
 
-export const KarplusNode = memo(({ data, selected }: { data: any; selected?: boolean }) => {
-    const [frequency, setFrequency] = useState(data.frequency || 220);
-    const [damping, setDamping] = useState(data.damping || 0.5);
+interface KarplusNodeProps {
+    id: string;
+    data: {
+        frequency?: number;
+        damping?: number;
+        trigger?: boolean;
+        [key: string]: any;
+    };
+    selected?: boolean;
+}
+
+export const KarplusNode = memo(({ id, data, selected }: KarplusNodeProps) => {
+    const updateNodeData = useNodeGraphStore(state => state.updateNodeData);
+    
+    // Read directly from Zustand store (NOT from ReactFlow's potentially stale props)
+    const frequency = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.frequency ?? 220);
+    const damping = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.damping ?? 0.5);
+    
+    // Local UI state for visual feedback
     const [isPlucking, setIsPlucking] = useState(false);
+
+    // Update store when frequency changes
+    const handleFrequencyChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        updateNodeData(id, { frequency: Number(e.target.value) });
+    }, [id, updateNodeData]);
+
+    // Update store when damping changes
+    const handleDampingChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        updateNodeData(id, { damping: Number(e.target.value) });
+    }, [id, updateNodeData]);
 
     const handlePluck = useCallback(() => {
         setIsPlucking(true);
         // Visual feedback animation
         setTimeout(() => setIsPlucking(false), 150);
-        // TODO: Send pluck message to AudioWorklet
-    }, []);
+        // Send trigger to worklet via store (will be synced to AudioWorklet)
+        updateNodeData(id, { trigger: true });
+        // Reset trigger after brief delay
+        setTimeout(() => updateNodeData(id, { trigger: false }), 50);
+    }, [id, updateNodeData]);
 
     const sliderClass = `w-full h-1.5 bg-gray-800 rounded-full appearance-none cursor-pointer
         [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3
@@ -21,9 +51,10 @@ export const KarplusNode = memo(({ data, selected }: { data: any; selected?: boo
 
     return (
         <BaseNode 
-            title="String Synth" 
+            title="Karplus-Strong" 
             type="source" 
             selected={selected}
+            nodeId={id}
             handles={HANDLE_PRESETS.stringSynth}
             icon="🎸"
         >
@@ -66,7 +97,7 @@ export const KarplusNode = memo(({ data, selected }: { data: any; selected?: boo
                         min="50"
                         max="1000"
                         value={frequency}
-                        onChange={(e) => setFrequency(Number(e.target.value))}
+                        onChange={handleFrequencyChange}
                         className={sliderClass}
                     />
                 </div>
@@ -83,7 +114,7 @@ export const KarplusNode = memo(({ data, selected }: { data: any; selected?: boo
                         max="1"
                         step="0.01"
                         value={damping}
-                        onChange={(e) => setDamping(Number(e.target.value))}
+                        onChange={handleDampingChange}
                         className={sliderClass}
                     />
                 </div>

@@ -1,11 +1,44 @@
-import { memo, useState, useMemo } from 'react';
+import { memo, useMemo, useCallback } from 'react';
 import { BaseNode, HANDLE_PRESETS } from './BaseNode';
+import { useNodeGraphStore } from '../../../store/nodeGraphStore';
 
-export const EnvelopeNode = memo(({ data, selected }: { data: any; selected?: boolean }) => {
-    const [attack, setAttack] = useState(data.attack || 10);
-    const [decay, setDecay] = useState(data.decay || 100);
-    const [sustain, setSustain] = useState(data.sustain || 70);
-    const [release, setRelease] = useState(data.release || 500);
+interface EnvelopeNodeProps {
+    id: string;
+    data: {
+        attack?: number;
+        decay?: number;
+        sustain?: number;
+        release?: number;
+        [key: string]: any;
+    };
+    selected?: boolean;
+}
+
+export const EnvelopeNode = memo(({ id, data, selected }: EnvelopeNodeProps) => {
+    const updateNodeData = useNodeGraphStore(state => state.updateNodeData);
+    
+    // Read directly from Zustand store (NOT from ReactFlow's potentially stale props)
+    const attack = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.attack ?? 10);
+    const decay = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.decay ?? 100);
+    const sustain = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.sustain ?? 70);
+    const release = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.release ?? 500);
+
+    // Handlers update store
+    const handleAttackChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        updateNodeData(id, { attack: Number(e.target.value) });
+    }, [id, updateNodeData]);
+
+    const handleDecayChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        updateNodeData(id, { decay: Number(e.target.value) });
+    }, [id, updateNodeData]);
+
+    const handleSustainChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        updateNodeData(id, { sustain: Number(e.target.value) });
+    }, [id, updateNodeData]);
+
+    const handleReleaseChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        updateNodeData(id, { release: Number(e.target.value) });
+    }, [id, updateNodeData]);
 
     // Generate SVG path for envelope visualization
     const envPath = useMemo(() => {
@@ -36,6 +69,7 @@ export const EnvelopeNode = memo(({ data, selected }: { data: any; selected?: bo
             title="Envelope" 
             type="control" 
             selected={selected}
+            nodeId={id}
             handles={HANDLE_PRESETS.envelope}
             icon="📈"
         >
@@ -67,7 +101,7 @@ export const EnvelopeNode = memo(({ data, selected }: { data: any; selected?: bo
                             <label className="text-[9px] text-gray-500 uppercase">Attack</label>
                             <span className="text-[9px] text-amber-400 font-mono">{formatMs(attack)}</span>
                         </div>
-                        <input type="range" min="0" max="2000" value={attack} onChange={(e) => setAttack(Number(e.target.value))} className={sliderClass} />
+                        <input type="range" min="0" max="2000" value={attack} onChange={handleAttackChange} className={sliderClass} />
                     </div>
 
                     {/* Decay */}
@@ -76,7 +110,7 @@ export const EnvelopeNode = memo(({ data, selected }: { data: any; selected?: bo
                             <label className="text-[9px] text-gray-500 uppercase">Decay</label>
                             <span className="text-[9px] text-amber-400 font-mono">{formatMs(decay)}</span>
                         </div>
-                        <input type="range" min="0" max="2000" value={decay} onChange={(e) => setDecay(Number(e.target.value))} className={sliderClass} />
+                        <input type="range" min="0" max="2000" value={decay} onChange={handleDecayChange} className={sliderClass} />
                     </div>
 
                     {/* Sustain */}
@@ -85,7 +119,7 @@ export const EnvelopeNode = memo(({ data, selected }: { data: any; selected?: bo
                             <label className="text-[9px] text-gray-500 uppercase">Sustain</label>
                             <span className="text-[9px] text-amber-400 font-mono">{sustain}%</span>
                         </div>
-                        <input type="range" min="0" max="100" value={sustain} onChange={(e) => setSustain(Number(e.target.value))} className={sliderClass} />
+                        <input type="range" min="0" max="100" value={sustain} onChange={handleSustainChange} className={sliderClass} />
                     </div>
 
                     {/* Release */}
@@ -94,7 +128,7 @@ export const EnvelopeNode = memo(({ data, selected }: { data: any; selected?: bo
                             <label className="text-[9px] text-gray-500 uppercase">Release</label>
                             <span className="text-[9px] text-amber-400 font-mono">{formatMs(release)}</span>
                         </div>
-                        <input type="range" min="0" max="5000" value={release} onChange={(e) => setRelease(Number(e.target.value))} className={sliderClass} />
+                        <input type="range" min="0" max="5000" value={release} onChange={handleReleaseChange} className={sliderClass} />
                     </div>
                 </div>
             </div>

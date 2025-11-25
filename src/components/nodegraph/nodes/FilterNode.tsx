@@ -1,20 +1,49 @@
-import { memo, useState } from 'react';
+import { memo, useCallback } from 'react';
 import { BaseNode, HANDLE_PRESETS } from './BaseNode';
+import { useNodeGraphStore } from '../../../store/nodeGraphStore';
 
-export const FilterNode = memo(({ data, selected }: { data: any; selected?: boolean }) => {
-    const [cutoff, setCutoff] = useState(data.cutoff || 1000);
-    const [resonance, setResonance] = useState(data.resonance || 1);
-    const [filterType, setFilterType] = useState(data.type || 'lowpass');
+interface FilterNodeProps {
+    id: string;
+    data: {
+        cutoff?: number;
+        resonance?: number;
+        filterType?: string;
+        [key: string]: any;
+    };
+    selected?: boolean;
+}
+
+export const FilterNode = memo(({ id, data, selected }: FilterNodeProps) => {
+    const updateNodeData = useNodeGraphStore(state => state.updateNodeData);
+    
+    // Read directly from Zustand store (NOT from ReactFlow's potentially stale props)
+    const cutoff = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.cutoff ?? 1000);
+    const resonance = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.resonance ?? 1);
+    const filterType = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.filterType ?? 'lowpass');
 
     // Convert linear slider to logarithmic for frequency
     const freqToSlider = (freq: number) => Math.log2(freq / 20) / Math.log2(20000 / 20) * 100;
     const sliderToFreq = (val: number) => Math.round(20 * Math.pow(20000 / 20, val / 100));
+
+    // Handlers
+    const handleCutoffChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        updateNodeData(id, { cutoff: sliderToFreq(Number(e.target.value)) });
+    }, [id, updateNodeData]);
+
+    const handleResonanceChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        updateNodeData(id, { resonance: Number(e.target.value) });
+    }, [id, updateNodeData]);
+
+    const handleFilterTypeChange = useCallback((type: string) => {
+        updateNodeData(id, { filterType: type });
+    }, [id, updateNodeData]);
 
     return (
         <BaseNode 
             title="Filter" 
             type="effect" 
             selected={selected}
+            nodeId={id}
             handles={HANDLE_PRESETS.filter}
             icon="⫘"
         >
@@ -32,7 +61,7 @@ export const FilterNode = memo(({ data, selected }: { data: any; selected?: bool
                         min="0"
                         max="100"
                         value={freqToSlider(cutoff)}
-                        onChange={(e) => setCutoff(sliderToFreq(Number(e.target.value)))}
+                        onChange={handleCutoffChange}
                         className="w-full h-1.5 bg-gray-800 rounded-full appearance-none cursor-pointer
                             [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3
                             [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-500
@@ -53,7 +82,7 @@ export const FilterNode = memo(({ data, selected }: { data: any; selected?: bool
                         max="30"
                         step="0.1"
                         value={resonance}
-                        onChange={(e) => setResonance(Number(e.target.value))}
+                        onChange={handleResonanceChange}
                         className="w-full h-1.5 bg-gray-800 rounded-full appearance-none cursor-pointer
                             [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3
                             [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-500
@@ -69,7 +98,7 @@ export const FilterNode = memo(({ data, selected }: { data: any; selected?: bool
                         {['lowpass', 'highpass', 'bandpass'].map((type) => (
                             <button
                                 key={type}
-                                onClick={() => setFilterType(type)}
+                                onClick={() => handleFilterTypeChange(type)}
                                 style={{
                                     padding: '6px 8px',
                                     fontSize: 9,

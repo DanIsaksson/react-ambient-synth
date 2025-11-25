@@ -1,8 +1,9 @@
-import React, { useEffect, useCallback, useRef } from 'react';
+import React, { useEffect, useCallback, useRef, useState } from 'react';
 import { ReactFlow, Background, Controls, MiniMap, ReactFlowProvider, useReactFlow, Panel } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useNodeGraphStore } from '../../store/nodeGraphStore';
 import { useModulationStore } from '../../store/modulationStore';
+import { useAudioStore } from '../../store/useAudioStore';
 import { GraphManager } from '../../audio/engine/GraphManager';
 import { ModuleDock } from './NodeSidebar';
 import { MacroKnob } from '../controls/MacroKnob';
@@ -14,6 +15,12 @@ import { EnvelopeNode } from './nodes/EnvelopeNode';
 import { SequencerNode } from './nodes/SequencerNode';
 import { KarplusNode } from './nodes/KarplusNode';
 import { PhysicsNode } from './nodes/PhysicsNode';
+import { TextureNode } from './nodes/TextureNode';
+import { ResonatorNode } from './nodes/ResonatorNode';
+import { EuclideanNode } from './nodes/EuclideanNode';
+import { LFONode } from './nodes/LFONode';
+import { NoiseNode } from './nodes/NoiseNode';
+import { Spatial3DNode } from './nodes/Spatial3DNode';
 import { SignalEdge } from './edges/SignalEdge';
 
 // ============================================================================
@@ -28,8 +35,14 @@ const nodeTypes = {
     filter: FilterNode,
     envelope: EnvelopeNode,
     sequencer: SequencerNode,
+    euclidean: EuclideanNode,
+    lfo: LFONode,
+    noise: NoiseNode,
+    spatial: Spatial3DNode,
     karplus: KarplusNode,
     physics: PhysicsNode,
+    texture: TextureNode,
+    resonator: ResonatorNode,
     output: OutputNode,
 };
 
@@ -37,98 +50,59 @@ let id = 0;
 const getId = () => `dndnode_${id++}`;
 
 // ============================================================================
-// HEADER BAR - Minimal top bar with logo and controls
-// ============================================================================
-
-interface HeaderBarProps {
-    onExitGraphMode?: () => void;
-}
-
-const HeaderBar: React.FC<HeaderBarProps> = ({ onExitGraphMode }) => {
-    return (
-        <div style={{
-            height: 48,
-            flexShrink: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '0 20px',
-            background: 'linear-gradient(to bottom, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.4) 100%)',
-            zIndex: 10,
-            position: 'relative',
-        }}>
-            {/* Logo */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    background: '#22d3ee',
-                    boxShadow: '0 0 12px rgba(34,211,238,0.6)',
-                    animation: 'pulse 2s infinite',
-                }} />
-                <span style={{
-                    fontSize: 13,
-                    fontWeight: 300,
-                    letterSpacing: '0.25em',
-                    color: 'rgba(255,255,255,0.7)',
-                    textTransform: 'uppercase',
-                }}>
-                    Ambient Flow
-                </span>
-            </div>
-
-            {/* Controls */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <span style={{ fontSize: 10, color: '#666' }}>Graph Mode</span>
-                {onExitGraphMode && (
-                    <button
-                        onClick={onExitGraphMode}
-                        style={{
-                            padding: '6px 12px',
-                            fontSize: 10,
-                            fontWeight: 600,
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.05em',
-                            borderRadius: 6,
-                            border: '1px solid rgba(255,255,255,0.2)',
-                            background: 'rgba(255,255,255,0.05)',
-                            color: 'rgba(255,255,255,0.7)',
-                            cursor: 'pointer',
-                            transition: 'all 150ms ease',
-                        }}
-                    >
-                        ← Classic Mode
-                    </button>
-                )}
-            </div>
-        </div>
-    );
-};
-
-// ============================================================================
 // MAIN NODE EDITOR CONTENT
 // ============================================================================
 
-interface NodeEditorContentProps {
-    onExitGraphMode?: () => void;
-}
-
-const NodeEditorContent: React.FC<NodeEditorContentProps> = ({ onExitGraphMode }) => {
+const NodeEditorContent: React.FC = () => {
     const reactFlowWrapper = useRef<HTMLDivElement>(null);
-    const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode } = useNodeGraphStore();
+    const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode, deleteEdge } = useNodeGraphStore();
     const { macros, setMacroValue } = useModulationStore();
+    const { init, isGraphPlaying } = useAudioStore();
     const { screenToFlowPosition } = useReactFlow();
+    
+    // Track when audio system is fully initialized (worklet loaded)
+    const [isAudioReady, setIsAudioReady] = useState(false);
 
-    // Sync graph changes to AudioWorklet
+    // Initialize audio when entering graph mode (async with proper cleanup)
     useEffect(() => {
-        GraphManager.syncGraph(nodes, edges);
-    }, [nodes, edges]);
+        let mounted = true;
+        const initAudio = async () => {
+            await init();
+            if (mounted) {
+                setIsAudioReady(true);
+                console.log('[NodeEditor] Audio system ready');
+            }
+        };
+        initAudio();
+        return () => { mounted = false; };
+    }, [init]);
+
+    // Sync graph changes to AudioWorklet - ONLY after audio is ready
+    useEffect(() => {
+        if (isAudioReady) {
+            console.log('[NodeEditor] Syncing graph to worklet', { nodes: nodes.length, edges: edges.length });
+            GraphManager.syncGraph(nodes, edges);
+        }
+    }, [nodes, edges, isAudioReady]);
+
+    // Safety net: Re-sync graph when Graph Mode playback starts
+    useEffect(() => {
+        if (isGraphPlaying && isAudioReady) {
+            console.log('[NodeEditor] Re-syncing graph on play');
+            GraphManager.syncGraph(nodes, edges);
+        }
+    }, [isGraphPlaying, isAudioReady, nodes, edges]);
 
     // Sync macro changes
     useEffect(() => {
         GraphManager.syncMacros(macros);
     }, [macros]);
+
+    // Delete edge on click (for easy disconnection testing)
+    const onEdgeClick = useCallback((_event: React.MouseEvent, edge: { id: string }) => {
+        console.log('[NodeEditor] Edge clicked, deleting:', edge.id);
+        deleteEdge(edge.id);
+    }, [deleteEdge]);
 
     const onDragOver: React.DragEventHandler<HTMLDivElement> = useCallback((event) => {
         event.preventDefault();
@@ -191,8 +165,8 @@ const NodeEditorContent: React.FC<NodeEditorContentProps> = ({ onExitGraphMode }
                 }}
             />
 
-            {/* Header */}
-            <HeaderBar onExitGraphMode={onExitGraphMode} />
+            {/* Spacer for unified header */}
+            <div style={{ height: 48, flexShrink: 0 }} />
 
             {/* Main Canvas Container - Takes remaining space */}
             <div 
@@ -212,6 +186,7 @@ const NodeEditorContent: React.FC<NodeEditorContentProps> = ({ onExitGraphMode }
                     onNodesChange={onNodesChange}
                     onEdgesChange={onEdgesChange}
                     onConnect={onConnect}
+                    onEdgeClick={onEdgeClick}
                     onDragOver={onDragOver}
                     onDrop={onDrop}
                     nodeTypes={nodeTypes}
@@ -333,14 +308,10 @@ const NodeEditorContent: React.FC<NodeEditorContentProps> = ({ onExitGraphMode }
 // EXPORT
 // ============================================================================
 
-interface NodeEditorProps {
-    onExitGraphMode?: () => void;
-}
-
-export const NodeEditor: React.FC<NodeEditorProps> = ({ onExitGraphMode }) => {
+export const NodeEditor: React.FC = () => {
     return (
         <ReactFlowProvider>
-            <NodeEditorContent onExitGraphMode={onExitGraphMode} />
+            <NodeEditorContent />
         </ReactFlowProvider>
     );
 };

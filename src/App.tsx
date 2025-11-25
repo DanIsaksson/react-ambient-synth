@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAudioStore } from './store/useAudioStore';
 import { ControlPanel } from './components/ControlPanel';
 import { BrownNoiseScene } from './audio/scenes/BrownNoiseScene';
@@ -10,8 +10,9 @@ import { EuclideanGrooveScene } from './audio/scenes/EuclideanGrooveScene';
 import { GravityPhasingScene } from './audio/scenes/GravityPhasingScene';
 import { Scene3D } from './components/visualizers/Scene3D';
 import { NodeEditor } from './components/nodegraph/NodeEditor';
-import { HolographicButton } from './components/controls';
-import { LayoutGrid, Play, Square } from 'lucide-react';
+import { FloatingVisualizer } from './components/visualizers/FloatingVisualizer';
+import { UnifiedHeader } from './components/controls/UnifiedHeader';
+import { Eye } from 'lucide-react';
 import './App.css';
 
 function App() {
@@ -27,6 +28,8 @@ function App() {
   } = useAudioStore();
 
   const [viewMode, setViewMode] = useState<'classic' | 'graph'>('classic');
+  const [showGravityVisualizer, setShowGravityVisualizer] = useState(false);
+  const gravitySceneRef = useRef<GravityPhasingScene | null>(null);
 
   // Local UI State (mirrors audio state for controlled inputs)
   const [rumble, setRumble] = useState(0.5);
@@ -104,7 +107,20 @@ function App() {
     setAtmosphereParam('tension', val);
   };
 
+  // Gravity visualizer state getter
+  const getGravityVisualState = useCallback(() => {
+    if (gravitySceneRef.current) {
+      return gravitySceneRef.current.getVisualState();
+    }
+    return null;
+  }, []);
+
   const handleSceneChange = (sceneName: string) => {
+    // Reset gravity visualizer if switching away
+    if (sceneName !== "Gravity Phasing") {
+      setShowGravityVisualizer(false);
+      gravitySceneRef.current = null;
+    }
     switch (sceneName) {
       case "Brown Noise":
         setScene(new BrownNoiseScene(), sceneName);
@@ -112,7 +128,7 @@ function App() {
       case "Rain & Thunder":
         setScene(new RainThunderScene(), sceneName);
         break;
-      case "Dungeon 8-Bit":
+      case "8-bit Dungeon":
         setScene(new Dungeon8BitScene(), sceneName);
         break;
       case "Hangar Storm":
@@ -125,7 +141,10 @@ function App() {
         setScene(new EuclideanGrooveScene(), sceneName);
         break;
       case "Gravity Phasing":
-        setScene(new GravityPhasingScene(), sceneName);
+        const gravityScene = new GravityPhasingScene();
+        gravitySceneRef.current = gravityScene;
+        setScene(gravityScene, sceneName);
+        setShowGravityVisualizer(true); // Auto-show visualizer
         break;
       default:
         console.warn(`Unknown scene: ${sceneName}`);
@@ -144,45 +163,15 @@ function App() {
       {/* Layer 1: Graph Mode (Full Screen Workspace) - Fully opaque */}
       {viewMode === 'graph' && (
         <div className="absolute inset-0 z-10 animate-fade-in">
-          <NodeEditor onExitGraphMode={() => setViewMode('classic')} />
+          <NodeEditor />
         </div>
       )}
 
       {/* Layer 2: HUD & Classic Controls (Overlay) - HIDDEN in graph mode */}
       {viewMode === 'classic' && (
-        <div className="absolute inset-0 z-20 pointer-events-none flex flex-col justify-between p-6">
-          {/* Header */}
-          <header className="flex justify-between items-start pointer-events-auto">
-            <div>
-              <h1 className="text-4xl font-display font-bold tracking-widest uppercase text-neon-cyan"
-                  style={{ textShadow: '0 0 20px rgba(0, 204, 255, 0.5)' }}>
-                Ambient Flow
-              </h1>
-              <p className="text-xs font-mono text-muted-light mt-1 tracking-wider">
-                Generative Audio Workstation // v2.0
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <HolographicButton
-                onClick={() => setViewMode('graph')}
-                color="purple"
-                size="md"
-                icon={<LayoutGrid size={16} />}
-              >
-                Graph Mode
-              </HolographicButton>
-              <HolographicButton
-                onClick={handleTogglePlay}
-                color={isPlaying ? 'green' : 'cyan'}
-                size="lg"
-                pill
-                isActive={isPlaying}
-                icon={isPlaying ? <Square size={18} /> : <Play size={18} />}
-              >
-                {isPlaying ? 'Stop' : 'Start'}
-              </HolographicButton>
-            </div>
-          </header>
+        <div className="absolute inset-0 z-20 pointer-events-none flex flex-col justify-between p-6 pt-16">
+          {/* Spacer for unified header */}
+          <div />
 
           {/* Main Controls */}
           <main className="flex-1 flex items-center justify-center pointer-events-auto">
@@ -227,12 +216,40 @@ function App() {
               <span>DSP: <span className="text-neon-cyan">44.1kHz</span></span>
               <span>Voices: <span className="text-neon-cyan">2</span></span>
             </div>
-            <div className="text-right text-muted">
-              <p>System Status: <span className="text-neon-green" style={{ textShadow: '0 0 8px rgba(0, 255, 136, 0.5)' }}>● Active</span></p>
+            <div className="flex items-center gap-4">
+              {/* Show Visualizer Button (only for Gravity Phasing) */}
+              {currentScene === "Gravity Phasing" && !showGravityVisualizer && (
+                <button
+                  onClick={() => setShowGravityVisualizer(true)}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-400 
+                             hover:bg-purple-500/30 transition text-xs font-mono uppercase tracking-wider"
+                >
+                  <Eye size={14} />
+                  Show Visualizer
+                </button>
+              )}
+              <div className="text-right text-muted">
+                <p>System Status: <span className="text-neon-green" style={{ textShadow: '0 0 8px rgba(0, 255, 136, 0.5)' }}>● Active</span></p>
+              </div>
             </div>
           </footer>
         </div>
       )}
+
+      {/* Floating Gravity Visualizer */}
+      <FloatingVisualizer
+        isVisible={showGravityVisualizer && viewMode === 'classic'}
+        onClose={() => setShowGravityVisualizer(false)}
+        getVisualState={getGravityVisualState}
+      />
+
+      {/* Unified Header - Always visible at top */}
+      <div className="fixed top-0 left-0 right-0 z-50">
+        <UnifiedHeader 
+          viewMode={viewMode} 
+          onSwitchMode={() => setViewMode(viewMode === 'classic' ? 'graph' : 'classic')} 
+        />
+      </div>
     </div>
   );
 }

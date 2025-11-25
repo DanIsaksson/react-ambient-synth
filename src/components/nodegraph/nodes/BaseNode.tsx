@@ -1,5 +1,6 @@
-import React, { useRef } from 'react';
+import React, { useRef, useCallback } from 'react';
 import { Handle, Position } from '@xyflow/react';
+import { useNodeGraphStore } from '../../../store/nodeGraphStore';
 
 // ============================================================================
 // TYPES
@@ -24,6 +25,7 @@ interface BaseNodeProps {
     handles?: HandleConfig[];
     icon?: React.ReactNode;
     compact?: boolean; // For smaller nodes like Output
+    nodeId?: string; // For delete functionality
     // Future: signalLevel for metering (Phase 6)
     signalLevel?: number;
 }
@@ -101,10 +103,21 @@ export const BaseNode: React.FC<BaseNodeProps> = ({
     handles = DEFAULT_HANDLES,
     icon,
     compact = false,
+    nodeId,
     signalLevel = 0,
 }) => {
     const nodeRef = useRef<HTMLDivElement>(null);
     const colors = TYPE_COLORS[type] || TYPE_COLORS.source;
+    const deleteNode = useNodeGraphStore(state => state.deleteNode);
+
+    // Delete handler
+    const handleDelete = useCallback((e: React.MouseEvent) => {
+        e.stopPropagation(); // Prevent node selection
+        e.preventDefault();
+        if (nodeId) {
+            deleteNode(nodeId);
+        }
+    }, [nodeId, deleteNode]);
 
     // Group handles by position for offset calculation
     const handlesByPosition = handles.reduce((acc, handle) => {
@@ -168,8 +181,8 @@ export const BaseNode: React.FC<BaseNodeProps> = ({
                 }}
             />
 
-            {/* Header */}
-            <div className={`px-3 py-2 flex items-center gap-2 border-b border-white/5`}>
+            {/* Header - drag handle */}
+            <div className={`px-3 py-2 flex items-center gap-2 border-b border-white/5 cursor-grab active:cursor-grabbing`}>
                 {/* Status dot */}
                 <div 
                     className="w-1.5 h-1.5 rounded-full flex-shrink-0"
@@ -181,20 +194,40 @@ export const BaseNode: React.FC<BaseNodeProps> = ({
                 
                 {/* Title */}
                 <span 
-                    className="text-[10px] font-semibold tracking-wider uppercase truncate"
+                    className="text-[10px] font-semibold tracking-wider uppercase truncate flex-1"
                     style={{ color: selected ? colors.accent : 'rgba(255,255,255,0.6)' }}
                 >
                     {title}
                 </span>
                 
-                {/* Icon (if provided, right-aligned) */}
+                {/* Icon (if provided) */}
                 {icon && (
-                    <span className="ml-auto text-xs opacity-40">{icon}</span>
+                    <span className="text-xs opacity-40">{icon}</span>
+                )}
+
+                {/* Delete button */}
+                {nodeId && (
+                    <button
+                        onClick={handleDelete}
+                        className="w-5 h-5 flex items-center justify-center rounded
+                                   text-white/30 hover:text-red-500 hover:bg-red-500/20
+                                   transition-all duration-150 ml-1"
+                        title="Delete node"
+                    >
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                            <path 
+                                d="M2 2L10 10M10 2L2 10" 
+                                stroke="currentColor" 
+                                strokeWidth="2" 
+                                strokeLinecap="round"
+                            />
+                        </svg>
+                    </button>
                 )}
             </div>
 
-            {/* Content */}
-            <div className={`${compact ? 'p-2' : 'p-3'}`}>
+            {/* Content - nodrag prevents ReactFlow from intercepting mouse events on interactive elements */}
+            <div className={`nodrag cursor-default ${compact ? 'p-2' : 'p-3'}`}>
                 {children}
             </div>
 
@@ -212,10 +245,21 @@ export const BaseNode: React.FC<BaseNodeProps> = ({
                 </div>
             )}
 
-            {/* Handles with enhanced styling */}
+            {/* Handles with enhanced styling and direction arrows */}
             {Object.entries(handlesByPosition).map(([_position, posHandles]) =>
                 posHandles.map((handle, index) => {
                     const handleColor = HANDLE_COLORS[handle.color || 'blue'] || handle.color || '#3b82f6';
+                    const isInput = handle.type === 'target';
+                    
+                    // Determine arrow rotation based on position and type
+                    const getArrowRotation = () => {
+                        if (handle.position === 'top') return isInput ? 180 : 0;
+                        if (handle.position === 'bottom') return isInput ? 0 : 180;
+                        if (handle.position === 'left') return isInput ? 90 : -90;
+                        if (handle.position === 'right') return isInput ? -90 : 90;
+                        return 0;
+                    };
+                    
                     return (
                         <Handle
                             key={handle.id}
@@ -224,15 +268,36 @@ export const BaseNode: React.FC<BaseNodeProps> = ({
                             position={POSITION_MAP[handle.position]}
                             style={{
                                 ...getHandleStyle(handle, index, posHandles.length),
-                                width: 10,
-                                height: 10,
+                                width: 14,
+                                height: 14,
                                 background: `radial-gradient(circle at center, ${handleColor} 40%, transparent 70%)`,
                                 border: `2px solid ${handleColor}`,
                                 boxShadow: `0 0 8px ${handleColor}60`,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
                             }}
                             className="!rounded-full hover:!scale-150 transition-transform duration-150"
-                            title={handle.label}
-                        />
+                            title={handle.label || (isInput ? 'Input' : 'Output')}
+                        >
+                            {/* Direction arrow */}
+                            <svg
+                                width="8"
+                                height="8"
+                                viewBox="0 0 8 8"
+                                style={{
+                                    transform: `rotate(${getArrowRotation()}deg)`,
+                                    opacity: 0.9,
+                                    pointerEvents: 'none',
+                                }}
+                            >
+                                <path
+                                    d="M4 1L7 5H1L4 1Z"
+                                    fill="white"
+                                    stroke="none"
+                                />
+                            </svg>
+                        </Handle>
                     );
                 })
             )}

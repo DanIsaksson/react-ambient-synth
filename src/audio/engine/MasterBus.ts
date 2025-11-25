@@ -26,6 +26,9 @@ export class MasterBus {
         this.input.connect(this.limiter);
         this.limiter.connect(this.output);
         this.output.connect(this.context.destination);
+        
+        console.log('[MasterBus] Chain connected: input → limiter → output → destination');
+        console.log('[MasterBus] Output gain:', this.output.gain.value, 'Input gain:', this.input.gain.value);
     }
 
     public getInputNode(): AudioNode {

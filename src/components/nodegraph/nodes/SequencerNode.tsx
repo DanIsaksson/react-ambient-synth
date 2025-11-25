@@ -1,41 +1,68 @@
-import { memo, useState, useEffect, useRef } from 'react';
+import { memo, useState, useEffect, useRef, useCallback } from 'react';
 import { BaseNode, HANDLE_PRESETS } from './BaseNode';
+import { useNodeGraphStore } from '../../../store/nodeGraphStore';
 
-export const SequencerNode = memo(({ data, selected }: { data: any; selected?: boolean }) => {
-    const [bpm, setBpm] = useState(data.bpm || 120);
-    const [steps, setSteps] = useState<boolean[]>(data.steps || Array(8).fill(false).map((_, i) => i % 2 === 0));
+interface SequencerNodeProps {
+    id: string;
+    data: {
+        bpm?: number;
+        steps?: boolean[];
+        playing?: boolean;
+        [key: string]: any;
+    };
+    selected?: boolean;
+}
+
+export const SequencerNode = memo(({ id, data, selected }: SequencerNodeProps) => {
+    const updateNodeData = useNodeGraphStore(state => state.updateNodeData);
+    
+    // Read directly from Zustand store (NOT from ReactFlow's potentially stale props)
+    const bpm = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.bpm ?? 120);
+    const steps = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.steps ?? Array(8).fill(false).map((_, i) => i % 2 === 0));
+    const isPlaying = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.playing ?? false);
+    
+    // Local UI state for animation
     const [currentStep, setCurrentStep] = useState(0);
-    const [isPlaying, setIsPlaying] = useState(false);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-    // Step sequencer animation
+    // Step sequencer animation (visual only)
     useEffect(() => {
         if (isPlaying) {
             const intervalMs = (60 / bpm) * 1000 / 2; // 8th notes
             intervalRef.current = setInterval(() => {
                 setCurrentStep(prev => (prev + 1) % 8);
             }, intervalMs);
+        } else {
+            setCurrentStep(0);
         }
         return () => {
             if (intervalRef.current !== null) clearInterval(intervalRef.current);
         };
     }, [isPlaying, bpm]);
 
-    const toggleStep = (index: number) => {
-        setSteps(prev => {
-            const newSteps = [...prev];
-            newSteps[index] = !newSteps[index];
-            return newSteps;
-        });
-    };
+    // Handlers that update the store
+    const handleBpmChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        updateNodeData(id, { bpm: Number(e.target.value) });
+    }, [id, updateNodeData]);
+
+    const toggleStep = useCallback((index: number) => {
+        const newSteps = [...steps];
+        newSteps[index] = !newSteps[index];
+        updateNodeData(id, { steps: newSteps });
+    }, [id, steps, updateNodeData]);
+
+    const togglePlaying = useCallback(() => {
+        updateNodeData(id, { playing: !isPlaying });
+    }, [id, isPlaying, updateNodeData]);
 
     return (
         <BaseNode 
             title="Sequencer" 
             type="control" 
             selected={selected}
+            nodeId={id}
             handles={HANDLE_PRESETS.sequencer}
-            icon="🎹"
+            icon="⏱️"
         >
             <div className="flex flex-col gap-4">
                 {/* Step Grid */}
@@ -78,7 +105,7 @@ export const SequencerNode = memo(({ data, selected }: { data: any; selected?: b
                         min="60"
                         max="200"
                         value={bpm}
-                        onChange={(e) => setBpm(Number(e.target.value))}
+                        onChange={handleBpmChange}
                         className="w-full h-1.5 bg-gray-800 rounded-full appearance-none cursor-pointer
                             [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3
                             [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-orange-500
@@ -89,7 +116,7 @@ export const SequencerNode = memo(({ data, selected }: { data: any; selected?: b
 
                 {/* Play/Stop Button */}
                 <button 
-                    onClick={() => setIsPlaying(!isPlaying)}
+                    onClick={togglePlaying}
                     className={`
                         w-full py-2 rounded-lg border font-bold text-xs uppercase tracking-wider
                         transition-all duration-150 active:scale-95

@@ -326,17 +326,636 @@ postcss.config.js           - PostCSS with @tailwindcss/postcss
 
 ---
 
-## 10. Next Session: Phase 4
+## 10. Phase 4: Deep Synthesis - COMPLETED
 
-**Phase 4: Deep Synthesis** is ready to begin.
+**Date**: November 25, 2025
 
-Focus areas:
-1. Granular synthesis engine
-2. Physical modeling (Karplus-Strong refinement, modal synthesis)
-3. High-quality field recordings for Atmosphere Engine
-4. Sample-based texture generation
+### Changes Implemented:
 
-Audio routing will be addressed in **Phase 6: The Nervous System**.
+**1. Sample Management System** ✓:
+- Created `SampleManager` class for loading/caching AudioBuffers
+- Built-in sample library with textures, impulse responses, and oneshots
+- Support for streaming large field recordings
+- Test sample generation (pink noise) for development
+
+**2. Granular Synthesis Engine** ✓:
+- Created `GranularProcessor` AudioWorklet with:
+  - Hanning windowed grains (10-500ms)
+  - Position, spray, density, size, pitch controls
+  - Reverse probability for texture variation
+  - Up to 50 concurrent grains (performance budget)
+- Created `GranularNode` main-thread wrapper with full API
+
+**3. Enhanced Karplus-Strong** ✓:
+- Added **Stiffness allpass filter** for metallic string simulation
+- Improved damping with brightness control
+- Added DC blocker to prevent offset accumulation
+- Fractional delay interpolation for pitch accuracy
+- Trigger-based excitation system
+
+**4. Modal Synthesis (Physical Modeling)** ✓:
+- Added `modal` node type to main processor
+- Material presets: **Glass** (inharmonic, long ring), **Wood** (harmonic, short decay), **Metal** (clustered partials)
+- 8 resonant modes per resonator (performance budget)
+- Biquad bandpass filter bank with Q-factor control
+- Strike/ping excitation with envelope
+
+**5. Convolution Reverb** ✓:
+- Created `ConvolutionReverbNode` using native ConvolverNode
+- Wet/dry mix with equal-power crossfade
+- Pre-delay up to 500ms
+- High/low frequency damping shelves
+- Built-in IR presets: Cathedral, Small Room, Cave, Plate
+- Synthetic IR generation for testing
+
+**6. Graph UI Nodes** ✓:
+- Created `TextureNode` (granular) with cloud visualization
+- Created `ResonatorNode` (modal) with mode spectrum display
+- Added to module dock: TXT (cyan), RES (purple)
+- Material selector buttons for resonator
+
+### New Files Created:
+```
+src/audio/engine/
+├── SampleManager.ts           - Audio buffer management
+
+src/audio/worklets/
+├── granular-processor.js      - Granular synthesis DSP
+
+src/audio/nodes/sources/
+├── GranularNode.ts            - Granular synth wrapper
+
+src/audio/nodes/effects/
+├── ConvolutionReverbNode.ts   - Convolution reverb
+
+src/components/nodegraph/nodes/
+├── TextureNode.tsx            - Granular UI node
+├── ResonatorNode.tsx          - Modal synthesis UI node
+```
+
+### Modified Files:
+```
+src/audio/worklets/main-processor.js  - Enhanced Karplus-Strong, added Modal
+src/components/nodegraph/NodeEditor.tsx - Registered new nodes
+src/components/nodegraph/NodeSidebar.tsx - Added TXT/RES to dock
+```
+
+### Technical Highlights:
+- **Performance budgets enforced**: Max 50 grains, 8 modes per resonator
+- **All DSP in AudioWorklet**: No main-thread signal processing
+- **Hanning windows**: Click-free grain boundaries
+- **Biquad filters**: CPU-efficient modal synthesis
+
+### Integration Notes:
+- Granular engine requires sample files in `/public/samples/`
+- Convolution reverb requires IR files in `/public/samples/impulses/`
+- For testing without files, use `generateTestSample()` and `generateSyntheticIR()`
+
+---
+
+## 11. Phase 5: Rhythmic Intelligence - COMPLETED
+
+**Date**: November 25, 2025
+
+### Changes Implemented:
+
+**1. Euclidean Rhythm Algorithm** ✓:
+- Bjorklund's algorithm for distributing pulses evenly over steps
+- Pattern rotation for groove variations
+- Preset patterns: Tresillo (3,8), Cinquillo (5,8), Bossa Nova (5,16), etc.
+- Pattern analysis utilities (density, intervals, pulse indices)
+
+**2. TriggerEvent System** ✓:
+- `TriggerEvent` interface for `note_on`/`note_off`/`trigger` events
+- `SequenceStep` with per-step probability and velocity
+- `StepCondition` for conditional logic (first, every_n, fill)
+- Type definitions for polyrhythmic configurations
+
+**3. Lookahead Scheduler** ✓:
+- 25ms interval checking 100ms into the future
+- Sample-accurate scheduling using `AudioContext.currentTime`
+- Multi-track support with independent clocks (polyrhythms)
+- Swing control for groove feel
+- Beat/bar clock events for visualization sync
+
+**4. EuclideanSequencerNode UI** ✓:
+- Circular polar visualization with rotating playhead
+- Steps/Pulses/Rotation controls
+- Preset buttons (Tresillo, Cinquillo, Bossa Nova)
+- Per-step probability slider
+- BPM tempo control
+
+**5. Polyrhythmic Support** ✓:
+- Each track has independent `stepsPerBeat` setting
+- LCM calculation for cycle length
+- Phase relationship evolution (Steve Reich style)
+
+### New Files Created:
+```
+src/audio/rhythm/
+├── index.ts           - Module exports
+├── euclidean.ts       - Bjorklund's algorithm + presets
+├── types.ts           - TriggerEvent, SequenceStep, etc.
+└── Scheduler.ts       - Lookahead scheduler class
+
+src/components/nodegraph/nodes/
+└── EuclideanNode.tsx  - Circular sequencer UI
+```
+
+### Technical Highlights:
+- **Bjorklund's algorithm**: O(n) distribution using Bresenham approach
+- **Lookahead scheduling**: Prevents main-thread lag from affecting timing
+- **Probability per step**: Humanizes patterns with ghost notes
+- **Polyrhythm math**: `calculatePolyCycle()` for LCM of time signatures
+
+### Module Dock Addition:
+- **EUC** (orange) - Euclidean rhythm sequencer
+
+---
+
+## 12. Phase 6: The Nervous System - COMPLETED
+
+**Date**: November 25, 2025
+
+### Changes Implemented:
+
+**1. ModulationSystem Class** ✓:
+- Central routing system: Source -> GainNode (Amount) -> Target AudioParam
+- Source and target registration/management
+- Connection management with amount control
+- Transfer curves: linear, exponential, logarithmic, S-curve
+- Visualization state export for UI
+
+**2. LFO Node (Audio)** ✓:
+- Multiple waveforms: sine, triangle, square, sawtooth, random (S&H)
+- Frequency range: 0.01 Hz to 100 Hz
+- Bipolar (-1 to +1) or unipolar (0 to 1) output
+- Depth control
+- Real-time value getter for visualization
+
+**3. Noise Node (Perlin/Simplex)** ✓:
+- Custom 1D Simplex noise implementation
+- Fractal/octave noise for organic movement
+- Speed, depth, smoothness controls
+- "Wind-like" drift modulation source
+- Reseed capability for varied patterns
+
+**4. LFO UI Node** ✓:
+- Real-time canvas waveform visualization
+- Animated playhead
+- Waveform selector buttons (∿ △ ⊓ ⩘ ⁂)
+- Rate and depth sliders
+
+**5. Transfer Curves** ✓:
+- `applyTransferCurve()` utility function
+- `mapRange()` for value mapping with curves
+- Supports: linear, exponential, logarithmic, S-curve
+
+### New Files Created:
+```
+src/audio/modulation/
+├── index.ts              - Module exports
+├── ModulationSystem.ts   - Central routing system
+├── LFONode.ts            - LFO audio source
+└── NoiseNode.ts          - Perlin noise source
+
+src/components/nodegraph/nodes/
+└── LFONode.tsx           - LFO UI component
+```
+
+### Module Dock Addition:
+- **LFO** (violet) - Low frequency oscillator
+
+### Technical Highlights:
+- **GainNode routing**: Amount control via Web Audio API native nodes
+- **1D Simplex noise**: Smooth gradient noise for organic modulation
+- **Canvas visualization**: 60fps waveform animation
+- **Transfer curves**: Musical parameter mapping
+
+### Pending (deferred to polish phase):
+- Modulation ring visualization on knobs
+- Matrix view UI for power users
+
+---
+
+## 13. Phase 7: Spatial Audio - COMPLETED
+
+**Date**: November 25, 2025
+
+### Changes Implemented:
+
+**1. SpatialNode Wrapper Class** ✓:
+- HRTF binaural panning (Head-Related Transfer Function)
+- Distance model selection: linear, inverse, exponential
+- Reference distance and rolloff factor controls
+- Cone directivity for spotlighting sounds
+- Velocity tracking for Doppler effect
+
+**2. Air Absorption Filter** ✓:
+- Distance-based lowpass filtering
+- Simulates high-frequency absorption by air
+- Configurable absorption coefficient
+- Exponential frequency rolloff: `20kHz * exp(-dist * coef)`
+
+**3. Manual Doppler Effect** ✓:
+- Velocity calculation from position deltas
+- Relative velocity projection onto source-listener axis
+- Pitch shifting via `playbackRate` modulation
+- Classic Doppler formula: `f' = c / (c - v_s)`
+
+**4. AudioListenerManager** ✓:
+- Syncs Web Audio `AudioListener` with Three.js camera
+- Position and orientation tracking
+- Velocity calculation for Doppler
+- Auto-update loop option
+- Manages registered SpatialNodes
+
+**5. Spatial3DNode UI Component** ✓:
+- Interactive XY pad for horizontal positioning
+- Height (Y) slider for vertical placement
+- Distance model selector (LIN/INV/EXP)
+- Rolloff and air absorption controls
+- Real-time distance display
+- Visual listener/source indicators
+
+### New Files Created:
+```
+src/audio/spatial/
+├── index.ts              - Module exports
+├── SpatialNode.ts        - 3D panner wrapper
+└── AudioListenerManager.ts - Camera sync
+
+src/components/nodegraph/nodes/
+└── Spatial3DNode.tsx     - 3D positioning UI
+```
+
+### Module Dock Addition:
+- **3D** (sky blue) - Spatial audio positioning
+
+### Technical Highlights:
+- **HRTF Panning**: Enables above/behind/front localization
+- **Air Absorption**: High-frequency rolloff for realistic distance
+- **Doppler Effect**: Manual implementation (native deprecated)
+- **Listener Sync**: Camera movement affects audio spatialization
+
+---
+
+## 14. Phase 8: The Library - COMPLETED
+
+**Date**: November 25, 2025
+
+### Changes Implemented:
+
+**1. PatchData Types** ✓:
+- `PatchMeta`: name, author, version, category, tags, timestamps
+- `GraphData`: React Flow nodes and edges
+- `AudioData`: per-node parameter values
+- `GlobalState`: master volume, BPM
+- `ModulationData`: LFO and macro configurations
+- Version compatibility with semantic versioning
+
+**2. PresetManager Class** ✓:
+- `createPatch()`: Serialize current state to PatchData
+- `compressToURL()` / `decompressFromURL()`: LZ-String compression
+- `generateShareURL()`: Create shareable links
+- `saveToLocalStorage()` / `loadFromLocalStorage()`: Persistence
+- `getUserPresets()` / `saveUserPreset()` / `deleteUserPreset()`: User management
+- `exportToFile()` / `importFromFile()`: JSON file I/O
+- `migrate()`: Version migration for backwards compatibility
+- `validate()`: PatchData structure validation
+
+**3. Factory Presets** ✓:
+- **Deep Slumber** (sleep): Brown noise + lowpass drone
+- **Pulse Focus** (focus): Euclidean rhythms + filtered pulses
+- **Space Drift** (scifi): Chaos oscillators + spatial movement
+- **Forest Morning** (nature): Granular textures + wind drift
+- **Resonant Strings** (ambient): Karplus-Strong + modal synthesis
+- **Chaos Engine** (experimental): Multiple LFOs interference
+
+**4. Preset Browser UI** ✓:
+- Category filtering (All, Sleep, Focus, Ambient, Sci-Fi, Nature, Experimental, User)
+- Preset cards with metadata display
+- Load, Share, Delete actions
+- Save current patch dialog
+- Import from file
+- Animated modal with Framer Motion
+
+### New Files Created:
+```
+src/presets/
+├── index.ts           - Module exports
+├── types.ts           - PatchData interfaces
+├── PresetManager.ts   - Core serialization class
+└── factory/
+    └── index.ts       - 6 factory presets
+
+src/components/
+└── PresetBrowser.tsx  - UI component
+```
+
+### Dependencies Added:
+- `lz-string` + `@types/lz-string` for URL compression
+
+### Technical Highlights:
+- **LZ-String compression**: ~10KB JSON → ~2KB URL-safe string
+- **Version migration**: Future-proof with semantic versioning
+- **Local storage**: Autosave and user preset persistence
+- **File export**: `.ambientflow.json` format
+
+---
+
+## 15. Pre-Phase 9 Debugging Session
+
+**Date**: November 25, 2025
+
+Before moving to Phase 9, a debugging session was conducted to address reported issues.
+
+### Confirmed Fixed ✅
+- **8-bit Dungeon Scene**: Case label mismatch fixed in `App.tsx`
+- **Handle Direction Arrows**: Arrow indicators now show input/output direction on node handles
+
+### Implemented Improvements ✅
+- **Gravity Phasing Visualizer**: Created `FloatingVisualizer.tsx` - draggable, fullscreen-capable window
+- **Play/Stop in Graph Mode**: Added button to `NodeEditor.tsx` header
+
+### Critical Bug Identified 🐛
+
+**Graph Mode produces no audio** due to a race condition:
+
+| Step | What Happens | Problem |
+|------|--------------|---------|
+| 1 | `NodeEditor` mounts | `init()` called (async) |
+| 2 | Second `useEffect` runs immediately | `GraphManager.syncGraph()` called |
+| 3 | Worklet still loading | `sendMessage()` → workletNode is NULL |
+| 4 | Graph data lost | Worklet never receives node/edge data |
+
+**Root Cause**: `init()` is async but not awaited. Graph sync fires before AudioWorklet is loaded.
+
+**Fix Required** (2 files):
+1. `NodeEditor.tsx`: Add `isAudioReady` state gate
+2. `SynthEngine.ts`: Add message queue + flush mechanism
+
+**Investigation Documents**:
+```
+long-term-plan/investigation-graph-audio/
+├── 00-summary.md          # Root cause analysis
+├── 01-fix-plan.md         # Proposed solutions
+├── 02-audio-chain-trace.md # Signal flow diagram
+└── 03-code-changes.md     # Exact code modifications
+```
+
+### Deferred Items
+- Connection helper tooltip (shows compatible handles while dragging)
+- Background visualizer pause when floating window shown
+
+---
+
+## 16. Graph Mode Critical Bug Fixes - COMPLETED
+
+**Date**: November 25, 2025
+
+### Issues Addressed
+
+This session focused on making Graph Mode fully functional by fixing multiple critical bugs.
+
+---
+
+### ✅ Issue #1: Graph Mode Audio Race Condition - FIXED
+
+**Problem**: Graph produced no audio because `GraphManager.syncGraph()` was called before AudioWorklet finished loading.
+
+**Solution Implemented**:
+1. **`NodeEditor.tsx`**: Added `isAudioReady` state gate that waits for audio initialization
+2. **`SynthEngine.ts`**: Added message queue that buffers messages until worklet is ready, then flushes
+3. **`useAudioStore.ts`**: Added separate `toggleGraph()` and `toggleClassic()` actions for independent engine control
+
+**Key Code Pattern**:
+```typescript
+// NodeEditor.tsx
+const [isAudioReady, setIsAudioReady] = useState(false);
+
+useEffect(() => {
+    init().then(() => setIsAudioReady(true));
+}, []);
+
+useEffect(() => {
+    if (isAudioReady) {
+        GraphManager.syncGraph(nodes, edges);
+    }
+}, [nodes, edges, isAudioReady]);
+```
+
+---
+
+### ✅ Issue #2: Multiple Output Nodes Not Working - FIXED
+
+**Problem**: Only the first output node received audio; additional outputs were silent.
+
+**Root Cause**: `main-processor.js` searched for a single `outputNodeId` and used `break` after finding the first.
+
+**Solution**: Changed to collect ALL output node IDs and sum audio to each:
+```javascript
+// Before: Single output
+const outputNodeId = this.nodes.find(n => n.type === 'output')?.id;
+
+// After: Multiple outputs
+const outputNodeIds = [];
+for (const [id, node] of this.nodes.entries()) {
+    if (node.type === 'output') outputNodeIds.push(id);
+}
+// Sum audio to all output nodes
+```
+
+---
+
+### ✅ Issue #3: Node Delete Button - IMPLEMENTED
+
+**Problem**: No way to remove nodes from the graph.
+
+**Solution**:
+1. **`nodeGraphStore.ts`**: Added `deleteNode(nodeId)` action that removes node AND connected edges
+2. **`BaseNode.tsx`**: Added `nodeId` prop and delete button (X icon) in header
+3. **All node components**: Updated to pass `nodeId={id}` to BaseNode
+
+**Delete button styling**: Red hover state, positioned in node header, stops event propagation to prevent node selection.
+
+---
+
+### 🔧 Issue #4: Slider Values Reset After Change - DEEP INVESTIGATION
+
+**Problem**: When user moved a slider, the value updated briefly then immediately reset to the original value.
+
+#### Investigation Process
+
+Created detailed investigation documents in `long-term-plan/investigation/`:
+- `00-overview-slider-persistency.md` - Problem statement and hypothesis tree
+- `01-root-cause-analysis.md` - Deep dive into the feedback loop
+- `02-attempted-fixes.md` - Log of solutions tried
+- `03-final-solution.md` - Working fix documentation
+
+#### Root Cause Analysis
+
+**The Smoking Gun** (from console logs):
+```
+updateNodeData called → freq: 656 ✓
+After update, node data: freq: 656 ✓
+OscillatorNode Render: freq: 656 ✓
+...
+updateNodeData called → freq: 220 ← SECOND CALL WITH OLD VALUE
+```
+
+Both calls had identical stack traces pointing to `handleFreqChange`. The slider's `onChange` was firing TWICE.
+
+#### Why This Happened
+
+**Controlled Input Feedback Loop**:
+1. User drags slider to 656
+2. `onChange` fires → `updateNodeData({freq: 656})`
+3. Store updates → component re-renders
+4. React updates DOM: `input.value = 656`
+5. Browser detects programmatic value change
+6. Browser fires another `onChange` with stale DOM value
+7. `updateNodeData({freq: 220})` → value resets
+
+#### Attempted Fixes (All Failed)
+
+| Fix | Theory | Result |
+|-----|--------|--------|
+| Protect `onNodesChange` from replace | ReactFlow overwriting | ❌ Still reset |
+| Use callback form of `set()` | Zustand stale state | ❌ Still reset |
+| Direct store subscription | ReactFlow stale props | ❌ Still reset |
+| Local state + drag tracking | Controlled input loop | ❌ Still reset |
+
+#### Final Solution: `nodrag` CSS Class
+
+The user discovered that adding `nodrag` class to the slider input prevents ReactFlow from intercepting mouse events, which was the actual root cause:
+
+```tsx
+<input
+    type="range"
+    className="nodrag nopan w-full h-1.5 ..."
+    value={freq}
+    onChange={handleFreqChange}
+/>
+```
+
+**Also added** `nodrag` to `BaseNode.tsx` content area to prevent all interactive elements from being affected:
+```tsx
+<div className={`nodrag cursor-default ${compact ? 'p-2' : 'p-3'}`}>
+    {children}
+</div>
+```
+
+#### Store Subscription Pattern
+
+All node components were updated to read directly from Zustand store instead of ReactFlow props:
+
+```tsx
+// Before (stale props from ReactFlow)
+const freq = data.freq ?? 440;
+
+// After (direct store subscription)
+const freq = useNodeGraphStore(state => 
+    state.nodes.find(n => n.id === id)?.data?.freq ?? 440
+);
+```
+
+**Nodes updated**: OscillatorNode, FilterNode, EnvelopeNode, LFONode, NoiseNode, PhysicsNode, ResonatorNode, TextureNode, EuclideanNode, SequencerNode, KarplusNode, Spatial3DNode
+
+---
+
+### ✅ Issue #5: Cursor Icon Shows Grab Across Entire Node - FIXED
+
+**Problem**: The cursor showed a "grab" hand icon across the entire node, not just the draggable header.
+
+**Solution**: Applied cursor styling in `BaseNode.tsx`:
+
+```tsx
+{/* Header - drag handle */}
+<div className={`... cursor-grab active:cursor-grabbing`}>
+
+{/* Content area */}
+<div className={`nodrag cursor-default ...`}>
+```
+
+| Area | Cursor Style |
+|------|--------------|
+| Header (title bar) | `cursor-grab` → `cursor-grabbing` when dragging |
+| Content (controls) | `cursor-default` (normal pointer) |
+
+This applies to all nodes since they all extend `BaseNode`.
+
+---
+
+### Technical Learnings
+
+1. **ReactFlow `nodrag` class**: Critical for interactive elements inside nodes. Without it, ReactFlow intercepts mouse events for drag handling.
+
+2. **`nopan` class**: Prevents canvas panning when interacting with elements.
+
+3. **Direct store subscription**: Bypasses ReactFlow's prop passing which can have stale data during rapid updates.
+
+4. **Zustand `set()` callback form**: Always use `set((state) => ...)` instead of `set({ nodes: get().nodes... })` to avoid stale state during rapid updates.
+
+5. **BaseNode content area**: Wrapping children in `nodrag` container is cleaner than adding class to every interactive element.
+
+---
+
+### Files Modified This Session
+
+```
+src/store/nodeGraphStore.ts           - deleteNode action, callback form of set()
+src/audio/engine/SynthEngine.ts       - Message queue + flush mechanism
+src/audio/worklets/main-processor.js  - Multiple output node support
+src/components/nodegraph/NodeEditor.tsx - isAudioReady gate, play/stop button
+src/components/nodegraph/nodes/BaseNode.tsx - Delete button, nodrag content area
+src/components/nodegraph/nodes/*.tsx  - All nodes: direct store subscription, nodeId prop
+```
+
+### Investigation Documents Created
+
+```
+long-term-plan/investigation/
+├── 00-overview-slider-persistency.md
+├── 01-root-cause-analysis.md
+├── 02-attempted-fixes.md
+└── 03-final-solution.md
+```
+
+---
+
+## 17. Current Status Summary
+
+**Date Updated**: November 25, 2025
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Graph Mode Audio | ✅ Fixed | isAudioReady gate + message queue |
+| Multiple Output Nodes | ✅ Fixed | Sums to all outputs |
+| Node Delete Button | ✅ Implemented | X button in node header |
+| Slider Persistence | ✅ Fixed | `nodrag` class + direct store subscription |
+| Play/Stop in Graph Mode | ✅ Working | Header button toggles graph audio |
+| Cursor Styling | ✅ Fixed | Grab only on header, default on content |
+| Real Audio Meters | 🔜 Deferred | Placeholder animation for now |
+
+---
+
+## 18. Next Session: Phase 9 - The Stage
+
+**Phase 9: The Stage** is ready to begin. Graph Mode is now fully functional.
+
+### Phase 9 Deliverables:
+1. **Performance Mode UI** - Full-screen performance view
+2. **XY Pad Macro Controls** - 2D parameter control surfaces
+3. **Mute Groups** - Group nodes for quick muting/unmuting
+4. **Quantized Launching** - Sync mute toggles to beat/bar
+5. **MIDI Integration** - Web MIDI API for hardware controllers
+6. **Transport Controls** - Play/Stop/BPM/Tap Tempo
+
+### Remaining from earlier phases:
+- [ ] Real audio metering (OutputNode, BaseNode)
+- [ ] Modulation ring visualization on knobs
+- [ ] Matrix view for modulation routing
 
 ---
 *Document maintained for context continuity across sessions.*

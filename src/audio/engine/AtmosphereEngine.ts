@@ -119,4 +119,13 @@ export class AtmosphereEngine {
     public getLorenzState() {
         return this.lorenz.getVisualState();
     }
+
+    /**
+     * Mute/unmute the atmosphere engine (Classic Mode)
+     * Useful for testing Graph Mode audio in isolation
+     */
+    public setMuted(muted: boolean) {
+        this.output.gain.value = muted ? 0 : 1;
+        console.log('[AtmosphereEngine] Muted:', muted);
+    }
 }

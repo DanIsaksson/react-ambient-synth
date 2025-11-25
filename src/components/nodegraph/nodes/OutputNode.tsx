@@ -1,7 +1,12 @@
 import { memo, useState, useEffect, useRef } from 'react';
 import { BaseNode, HANDLE_PRESETS } from './BaseNode';
 
-export const OutputNode = memo(({ selected }: { selected?: boolean }) => {
+interface OutputNodeProps {
+    id: string;
+    selected?: boolean;
+}
+
+export const OutputNode = memo(({ id, selected }: OutputNodeProps) => {
     // Fake meter animation (will be replaced by real metering in Phase 6)
     const [meterL, setMeterL] = useState(0);
     const [meterR, setMeterR] = useState(0);
@@ -37,6 +42,7 @@ export const OutputNode = memo(({ selected }: { selected?: boolean }) => {
             title="Output" 
             type="output" 
             selected={selected}
+            nodeId={id}
             handles={HANDLE_PRESETS.sinkOnly}
             icon="🔊"
             compact
