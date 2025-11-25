@@ -1,0 +1,2 @@
+1. Add a module for determining how and within what confines the noise should flow. This should have an effect on all the other module parameters.
+2. Add a mode for desktop and one for mobile. The desktop mode should have a grid layout and the mobile mode should have a vertical layout.
