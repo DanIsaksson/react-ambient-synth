@@ -12,12 +12,13 @@
  * @module components/nodegraph/nodes/SampleNode
  */
 
-import { memo, useState, useEffect, useRef, useCallback } from 'react';
+import { memo, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { BaseNode } from './BaseNode';
 import { useNodeGraphStore } from '../../../store/nodeGraphStore';
 import { SAMPLE_CATALOG } from '../../../audio/samples';
 import type { SampleCategory } from '../../../audio/samples';
 import { audioCore } from '../../../audio/engine/AudioCore';
+import { TYPED_HANDLE_PRESETS } from '../handleTypes';
 
 // ===========================================
 // TYPES
@@ -46,10 +47,8 @@ interface SampleNodeProps {
 // CONSTANTS
 // ===========================================
 
-const HANDLE_CONFIG = [
-  { id: 'trigger', type: 'target' as const, position: 'left' as const, label: 'Trig', color: 'red', offset: 50 },
-  { id: 'out', type: 'source' as const, position: 'right' as const, color: 'cyan', offset: 50 },
-];
+// Use typed handle config from the central type system (spread to make mutable)
+const HANDLE_CONFIG = [...TYPED_HANDLE_PRESETS.samplePlayer];
 
 // Default values (outside component to prevent infinite loops)
 const DEFAULT_SAMPLE = SAMPLE_CATALOG[0]?.id ?? '';
@@ -70,7 +69,7 @@ const CATEGORY_ICONS: Record<SampleCategory, string> = {
 // COMPONENT
 // ===========================================
 
-export const SampleNode = memo(({ id, data, selected }: SampleNodeProps) => {
+export const SampleNode = memo(({ id, data: _data, selected }: SampleNodeProps) => {
   const updateNodeData = useNodeGraphStore(state => state.updateNodeData);
   
   // Read from Zustand store to avoid stale props
@@ -85,8 +84,15 @@ export const SampleNode = memo(({ id, data, selected }: SampleNodeProps) => {
   const isPlaying = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.playing ?? false);
   const isMuted = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.muted ?? false);
   
+  // Check if this node has an outgoing connection (required for audio to flow through graph)
+  const edges = useNodeGraphStore(state => state.edges);
+  const isConnectedToGraph = useMemo(() => {
+    return edges.some(edge => edge.source === id && edge.sourceHandle === 'out');
+  }, [edges, id]);
+  
   // Local state for UI
   const [selectedCategory, setSelectedCategory] = useState<SampleCategory | 'all'>('all');
+  const [showConnectionWarning, setShowConnectionWarning] = useState(false);
   const waveformRef = useRef<HTMLCanvasElement>(null);
   
   // Get current sample metadata
@@ -196,6 +202,15 @@ export const SampleNode = memo(({ id, data, selected }: SampleNodeProps) => {
   }, [id, isMuted, gain, updateNodeData]);
 
   const handlePlayToggle = useCallback(async () => {
+    // IMPORTANT: Check if connected to graph - Sample audio must route through Output node
+    if (!isConnectedToGraph) {
+      setShowConnectionWarning(true);
+      // Auto-hide warning after 3 seconds
+      setTimeout(() => setShowConnectionWarning(false), 3000);
+      console.warn('[SampleNode] Cannot play: Sample node must be connected to Output node to produce sound');
+      return;
+    }
+    
     const sampleEngine = audioCore.getSamples();
     if (!sampleEngine) {
       console.warn('[SampleNode] SampleEngine not initialized');
@@ -216,7 +231,7 @@ export const SampleNode = memo(({ id, data, selected }: SampleNodeProps) => {
       sampleEngine.stop(id);
       updateNodeData(id, { playing: false });
     }
-  }, [id, isPlaying, sample, updateNodeData]);
+  }, [id, isPlaying, sample, updateNodeData, isConnectedToGraph]);
 
   // Sync parameters to SampleEngine when they change
   useEffect(() => {
@@ -255,6 +270,7 @@ export const SampleNode = memo(({ id, data, selected }: SampleNodeProps) => {
       type="source"
       selected={selected}
       nodeId={id}
+      nodeType="sample"
       handles={HANDLE_CONFIG}
       icon="🎵"
       isMuted={isMuted}
@@ -410,12 +426,31 @@ export const SampleNode = memo(({ id, data, selected }: SampleNodeProps) => {
             className={`flex-1 py-1.5 rounded-lg font-bold text-xs uppercase tracking-wider transition-all ${
               isPlaying
                 ? 'bg-red-500/30 border border-red-500 text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.3)]'
-                : 'bg-cyan-500/20 border border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/30'
+                : isConnectedToGraph
+                  ? 'bg-cyan-500/20 border border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/30'
+                  : 'bg-gray-500/20 border border-gray-500/50 text-gray-400 cursor-not-allowed'
             }`}
+            title={!isConnectedToGraph ? 'Connect output to an Output node first' : undefined}
           >
             {isPlaying ? '⏹ Stop' : '▶ Play'}
           </button>
         </div>
+        
+        {/* Connection Warning */}
+        {showConnectionWarning && (
+          <div className="flex items-center gap-2 p-2 rounded-lg bg-orange-500/20 border border-orange-500/40 text-orange-300 text-[10px]">
+            <span>⚠️</span>
+            <span>Connect output to an Output node to play audio</span>
+          </div>
+        )}
+        
+        {/* Connection Status Indicator */}
+        {!isConnectedToGraph && !showConnectionWarning && (
+          <div className="flex items-center gap-1 text-[9px] text-gray-500">
+            <span className="w-1.5 h-1.5 rounded-full bg-gray-500"></span>
+            <span>Not connected to output</span>
+          </div>
+        )}
 
         {/* Sample Info */}
         {sampleMeta && (

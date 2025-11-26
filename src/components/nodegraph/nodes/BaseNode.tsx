@@ -1,6 +1,9 @@
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useMemo, useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { useNodeGraphStore } from '../../../store/nodeGraphStore';
+import { useConnectionStateStore } from '../../../store/connectionStateStore';
+import { getHandleSignalType, isSignalCompatible } from '../handleTypes';
+import { getNodeInfo } from '../nodeInfo';
 
 // ============================================================================
 // TYPES
@@ -26,6 +29,7 @@ interface BaseNodeProps {
     icon?: React.ReactNode;
     compact?: boolean; // For smaller nodes like Output
     nodeId?: string; // For delete functionality
+    nodeType?: string; // For compatibility checking during connection
     // Future: signalLevel for metering (Phase 6)
     signalLevel?: number;
     // Mute functionality
@@ -107,6 +111,7 @@ export const BaseNode: React.FC<BaseNodeProps> = ({
     icon,
     compact = false,
     nodeId,
+    nodeType,
     signalLevel = 0,
     isMuted: externalMuted,
     onMuteToggle,
@@ -115,6 +120,43 @@ export const BaseNode: React.FC<BaseNodeProps> = ({
     const colors = TYPE_COLORS[type] || TYPE_COLORS.source;
     const deleteNode = useNodeGraphStore(state => state.deleteNode);
     const updateNodeData = useNodeGraphStore(state => state.updateNodeData);
+    
+    // Connection state for visual feedback
+    const { isConnecting, sourceNodeType, sourceHandleId, sourceHandleType } = useConnectionStateStore();
+    
+    // Calculate compatibility for a handle during active connection
+    const getHandleCompatibility = useMemo(() => {
+        return (handleId: string, handleType: 'source' | 'target'): 'neutral' | 'compatible' | 'incompatible' => {
+            if (!isConnecting || !sourceNodeType || !sourceHandleId || !nodeType) {
+                return 'neutral';
+            }
+            
+            // Can't connect same types (source to source, target to target)
+            if (sourceHandleType === handleType) {
+                return 'neutral';
+            }
+            
+            // Get signal types
+            const sourceSignal = getHandleSignalType(sourceNodeType, sourceHandleId);
+            const targetSignal = getHandleSignalType(nodeType, handleId);
+            
+            if (!sourceSignal || !targetSignal) {
+                return 'neutral';
+            }
+            
+            // Check compatibility based on direction
+            let isCompatible: boolean;
+            if (sourceHandleType === 'source') {
+                // Dragging from source -> this target
+                isCompatible = handleType === 'target' && isSignalCompatible(sourceSignal, targetSignal);
+            } else {
+                // Dragging from target -> this source
+                isCompatible = handleType === 'source' && isSignalCompatible(targetSignal, sourceSignal);
+            }
+            
+            return isCompatible ? 'compatible' : 'incompatible';
+        };
+    }, [isConnecting, sourceNodeType, sourceHandleId, sourceHandleType, nodeType]);
     
     // Read muted state from store if nodeId is provided
     const storedMuted = useNodeGraphStore(state => {
@@ -146,6 +188,16 @@ export const BaseNode: React.FC<BaseNodeProps> = ({
             deleteNode(nodeId);
         }
     }, [nodeId, deleteNode]);
+
+    // Info popup state
+    const [showInfo, setShowInfo] = useState(false);
+    const nodeInfo = nodeType ? getNodeInfo(nodeType) : null;
+    
+    const handleInfoToggle = useCallback((e: React.MouseEvent) => {
+        e.stopPropagation();
+        e.preventDefault();
+        setShowInfo(prev => !prev);
+    }, []);
 
     // Group handles by position for offset calculation
     const handlesByPosition = handles.reduce((acc, handle) => {
@@ -259,6 +311,24 @@ export const BaseNode: React.FC<BaseNodeProps> = ({
                     </button>
                 )}
 
+                {/* Info button */}
+                {nodeType && (
+                    <button
+                        onClick={handleInfoToggle}
+                        className={`w-5 h-5 flex items-center justify-center rounded
+                                   transition-all duration-150
+                                   ${showInfo 
+                                       ? 'text-cyan-400 bg-cyan-500/20' 
+                                       : 'text-white/30 hover:text-cyan-400 hover:bg-cyan-500/20'}`}
+                        title="Node Info"
+                    >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <circle cx="12" cy="12" r="10" />
+                            <path d="M12 16v-4M12 8h.01" />
+                        </svg>
+                    </button>
+                )}
+
                 {/* Delete button */}
                 {nodeId && (
                     <button
@@ -279,6 +349,73 @@ export const BaseNode: React.FC<BaseNodeProps> = ({
                     </button>
                 )}
             </div>
+            
+            {/* Info Popup */}
+            {showInfo && nodeInfo && (
+                <div 
+                    className="absolute left-full top-0 ml-2 z-50 w-64 bg-gray-900/95 border border-cyan-500/30 rounded-xl p-3 shadow-xl backdrop-blur-sm"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    {/* Header */}
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-cyan-400 font-semibold text-sm">{nodeInfo.name}</span>
+                        <button 
+                            onClick={handleInfoToggle}
+                            className="text-white/30 hover:text-white transition-colors"
+                        >
+                            <svg width="12" height="12" viewBox="0 0 12 12">
+                                <path d="M2 2L10 10M10 2L2 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                            </svg>
+                        </button>
+                    </div>
+                    
+                    {/* Description */}
+                    <p className="text-[10px] text-gray-400 mb-3 leading-relaxed">
+                        {nodeInfo.description}
+                    </p>
+                    
+                    {/* I/O Info */}
+                    <div className="space-y-2 mb-3">
+                        <div className="flex items-start gap-2">
+                            <span className="text-[9px] text-cyan-500 uppercase font-bold w-10 shrink-0">Out:</span>
+                            <span className="text-[9px] text-gray-300">{nodeInfo.outputs}</span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                            <span className="text-[9px] text-blue-500 uppercase font-bold w-10 shrink-0">In:</span>
+                            <span className="text-[9px] text-gray-300">{nodeInfo.inputs}</span>
+                        </div>
+                    </div>
+                    
+                    {/* Compatible nodes */}
+                    <div className="mb-3">
+                        <span className="text-[9px] text-green-500 uppercase font-bold block mb-1">Works with:</span>
+                        <div className="flex flex-wrap gap-1">
+                            {nodeInfo.compatibleWith.map(compat => (
+                                <span 
+                                    key={compat}
+                                    className="px-1.5 py-0.5 bg-white/5 border border-white/10 rounded text-[8px] text-gray-400"
+                                >
+                                    {compat}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                    
+                    {/* Example */}
+                    <div className="bg-black/30 rounded-lg p-2 border border-white/5">
+                        <span className="text-[9px] text-amber-500 uppercase font-bold block mb-1">Example:</span>
+                        <p className="text-[9px] text-gray-300 leading-relaxed">{nodeInfo.example}</p>
+                    </div>
+                    
+                    {/* Not implemented warning */}
+                    {!nodeInfo.implemented && (
+                        <div className="mt-2 flex items-center gap-2 text-[9px] text-orange-400 bg-orange-500/10 rounded px-2 py-1">
+                            <span>⚠️</span>
+                            <span>Audio processing not yet implemented</span>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Content - nodrag prevents ReactFlow from intercepting mouse events on interactive elements */}
             <div className={`nodrag cursor-default ${compact ? 'p-2' : 'p-3'} ${isMuted ? 'opacity-40 grayscale' : ''} transition-all duration-200`}>
@@ -320,43 +457,90 @@ export const BaseNode: React.FC<BaseNodeProps> = ({
                     };
                     
                     return (
-                        <Handle
-                            key={handle.id}
-                            id={handle.id}
-                            type={handle.type}
-                            position={POSITION_MAP[handle.position]}
-                            style={{
-                                ...getHandleStyle(handle, index, posHandles.length),
-                                width: 14,
-                                height: 14,
-                                background: `radial-gradient(circle at center, ${handleColor} 40%, transparent 70%)`,
-                                border: `2px solid ${handleColor}`,
-                                boxShadow: `0 0 8px ${handleColor}60`,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                            }}
-                            className="!rounded-full hover:!scale-150 transition-transform duration-150"
-                            title={handle.label || (isInput ? 'Input' : 'Output')}
-                        >
-                            {/* Direction arrow */}
-                            <svg
-                                width="8"
-                                height="8"
-                                viewBox="0 0 8 8"
-                                style={{
-                                    transform: `rotate(${getArrowRotation()}deg)`,
-                                    opacity: 0.9,
-                                    pointerEvents: 'none',
-                                }}
-                            >
-                                <path
-                                    d="M4 1L7 5H1L4 1Z"
-                                    fill="white"
-                                    stroke="none"
-                                />
-                            </svg>
-                        </Handle>
+                        (() => {
+                            const compatibility = getHandleCompatibility(handle.id, handle.type);
+                            const isCompatibleHandle = compatibility === 'compatible';
+                            const isIncompatibleHandle = compatibility === 'incompatible';
+                            
+                            // Compute dynamic styles based on compatibility
+                            // Compatible: grow slightly + glow (NO color change)
+                            // Incompatible: dim + red border
+                            const compatStyle: React.CSSProperties = isCompatibleHandle ? {
+                                // Keep original color, just add size increase and white glow
+                                boxShadow: `0 0 12px ${handleColor}, 0 0 24px rgba(255, 255, 255, 0.6)`,
+                                transform: 'scale(1.3)',
+                                zIndex: 100,
+                            } : isIncompatibleHandle ? {
+                                background: 'radial-gradient(circle at center, #374151 40%, transparent 70%)',
+                                border: '2px solid #ef4444',
+                                opacity: 0.5,
+                            } : {};
+                            
+                            return (
+                                <div key={handle.id} className="relative">
+                                    <Handle
+                                        id={handle.id}
+                                        type={handle.type}
+                                        position={POSITION_MAP[handle.position]}
+                                        style={{
+                                            ...getHandleStyle(handle, index, posHandles.length),
+                                            width: 14,
+                                            height: 14,
+                                            background: `radial-gradient(circle at center, ${handleColor} 40%, transparent 70%)`,
+                                            border: `2px solid ${handleColor}`,
+                                            boxShadow: `0 0 8px ${handleColor}60`,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            transition: 'all 150ms ease',
+                                            ...compatStyle,
+                                        }}
+                                        className={`!rounded-full hover:!scale-150 transition-all duration-150 ${
+                                            isCompatibleHandle ? 'animate-pulse' : ''
+                                        }`}
+                                        title={handle.label || (isInput ? 'Input' : 'Output')}
+                                    >
+                                        {/* Direction arrow */}
+                                        <svg
+                                            width="8"
+                                            height="8"
+                                            viewBox="0 0 8 8"
+                                            style={{
+                                                transform: `rotate(${getArrowRotation()}deg)`,
+                                                opacity: isIncompatibleHandle ? 0.3 : 0.9,
+                                                pointerEvents: 'none',
+                                            }}
+                                        >
+                                            <path
+                                                d="M4 1L7 5H1L4 1Z"
+                                                fill="white"
+                                                stroke="none"
+                                            />
+                                        </svg>
+                                    </Handle>
+                                    
+                                    {/* Red X for incompatible handles */}
+                                    {isIncompatibleHandle && (
+                                        <div 
+                                            className="absolute pointer-events-none"
+                                            style={{
+                                                width: 16,
+                                                height: 16,
+                                                top: handle.offset ? `${handle.offset}%` : '50%',
+                                                left: handle.position === 'left' ? -8 : handle.position === 'right' ? 'calc(100% - 8px)' : '50%',
+                                                transform: 'translate(-50%, -50%)',
+                                                zIndex: 101,
+                                            }}
+                                        >
+                                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                                <circle cx="8" cy="8" r="7" fill="#ef4444" opacity="0.9" />
+                                                <path d="M5 5l6 6M11 5l-6 6" stroke="white" strokeWidth="2" strokeLinecap="round" />
+                                            </svg>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })()
                     );
                 })
             )}
@@ -413,10 +597,10 @@ export const HANDLE_PRESETS = {
         { id: 'gate', type: 'target' as const, position: 'left' as const, label: 'Gate', color: 'red', offset: 50 },
         { id: 'out', type: 'source' as const, position: 'right' as const, color: 'purple', offset: 50 },
     ],
-    // Sequencer: dual outputs (gate + CV)
+    // Sequencer: dual outputs (gate on bottom, CV on right) - separate positions for easy selection
     sequencer: [
-        { id: 'gate', type: 'source' as const, position: 'right' as const, label: 'Gate', color: 'red', offset: 35 },
-        { id: 'cv', type: 'source' as const, position: 'right' as const, label: 'CV', color: 'orange', offset: 65 },
+        { id: 'gate', type: 'source' as const, position: 'bottom' as const, label: 'Gate', color: 'red', offset: 50 },
+        { id: 'cv', type: 'source' as const, position: 'right' as const, label: 'CV', color: 'orange', offset: 50 },
     ],
     // Physics: dual control outputs
     physics: [

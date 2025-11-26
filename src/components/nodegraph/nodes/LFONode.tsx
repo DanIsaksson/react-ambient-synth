@@ -183,6 +183,7 @@ export const LFONodeComponent = memo(({ id, data, selected }: LFONodeProps) => {
       type="control"
       selected={selected}
       nodeId={id}
+      nodeType="lfo"
       handles={[
         { id: 'out', type: 'source' as const, position: 'right' as const, color: 'purple', offset: 50 },
       ]}

@@ -167,6 +167,7 @@ export const NoiseNodeComponent = memo(({ id, data, selected }: NoiseNodeProps) 
       type="control"
       selected={selected}
       nodeId={id}
+      nodeType="noise"
       handles={[
         { id: 'out', type: 'source' as const, position: 'right' as const, color: 'emerald', offset: 50 },
       ]}

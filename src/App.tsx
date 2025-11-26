@@ -219,8 +219,9 @@ function App() {
     <div className="relative w-full h-screen bg-black overflow-hidden font-sans text-white">
       {/* Background Visualizer (3D) */}
       {/* Layer 0: Background Visualizer (3D) */}
+      {/* PERF: Pause R3F render loop when Graph Mode is active (hidden behind opaque UI) */}
       <div className="absolute inset-0 z-0">
-        <Scene3D />
+        <Scene3D paused={viewMode === 'graph'} />
       </div>
 
       {/* Layer 1: Graph Mode (Full Screen Workspace) - Fully opaque */}

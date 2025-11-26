@@ -22,6 +22,7 @@
 use crate::memory;
 use crate::simd_utils;
 use rustfft::{FftPlanner, num_complex::Complex};
+use core::ptr::addr_of_mut;
 
 // ============================================================================
 // CONSTANTS
@@ -79,8 +80,10 @@ static mut STATE: Option<ConvolutionState> = None;
 /// Initialize convolution state (called once)
 fn ensure_state() -> &'static mut ConvolutionState {
     unsafe {
-        if STATE.is_none() {
-            STATE = Some(ConvolutionState {
+        // SAFETY: Single-threaded WASM context, using raw pointer for Rust 2024
+        let state_ptr = addr_of_mut!(STATE);
+        if (*state_ptr).is_none() {
+            *state_ptr = Some(ConvolutionState {
                 planner: FftPlanner::new(),
                 ir_partitions: Vec::new(),
                 num_partitions: 0,
@@ -98,7 +101,7 @@ fn ensure_state() -> &'static mut ConvolutionState {
                 ir_loaded: false,
             });
         }
-        STATE.as_mut().unwrap()
+        (*state_ptr).as_mut().unwrap()
     }
 }
 
@@ -367,7 +370,9 @@ fn process_channel_block(
 
 /// Reset convolution state
 pub fn reset() {
-    if let Some(state) = unsafe { STATE.as_mut() } {
+    // SAFETY: Single-threaded WASM context
+    let state_ptr = unsafe { addr_of_mut!(STATE) };
+    if let Some(state) = unsafe { (*state_ptr).as_mut() } {
         state.overlap_l.fill(0.0);
         state.overlap_r.fill(0.0);
         for fdl in &mut state.fdl_l {

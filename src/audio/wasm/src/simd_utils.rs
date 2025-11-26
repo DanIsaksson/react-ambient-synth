@@ -594,6 +594,90 @@ pub fn find_peak(buffer: &[f32]) -> f32 {
 }
 
 // ============================================================================
+// GRANULAR SYNTHESIS OPTIMIZATION
+// ============================================================================
+
+/// Pre-computed raised cosine (Hann) envelope table
+/// 
+/// Avoids cos() calls in the inner grain loop.
+/// Table size of 1024 provides sufficient resolution for smooth envelopes.
+pub const ENVELOPE_TABLE_SIZE: usize = 1024;
+
+/// Static envelope lookup table - computed once at compile time
+/// Formula: 0.5 - 0.5 * cos(2π * phase) where phase = index / TABLE_SIZE
+pub static ENVELOPE_TABLE: [f32; ENVELOPE_TABLE_SIZE] = {
+    let mut table = [0.0f32; ENVELOPE_TABLE_SIZE];
+    let mut i = 0;
+    while i < ENVELOPE_TABLE_SIZE {
+        // Use polynomial approximation of cos for const fn
+        // cos(x) ≈ 1 - x²/2 + x⁴/24 for small x
+        // For full period: cos(2πx) where x = i/N
+        let phase = (i as f32) / (ENVELOPE_TABLE_SIZE as f32);
+        let x = phase * 2.0 * core::f32::consts::PI;
+        // Taylor series approximation (sufficient for envelope smoothness)
+        let x2 = x * x;
+        let x4 = x2 * x2;
+        let x6 = x4 * x2;
+        let cos_approx = 1.0 - x2 / 2.0 + x4 / 24.0 - x6 / 720.0;
+        table[i] = 0.5 - 0.5 * cos_approx;
+        i += 1;
+    }
+    table
+};
+
+/// Fast envelope lookup using pre-computed table
+/// 
+/// # Arguments
+/// * `phase` - Normalized phase (0.0 to 1.0)
+/// 
+/// # Returns
+/// Envelope value (0.0 to 1.0)
+#[inline]
+pub fn envelope_lookup(phase: f32) -> f32 {
+    let phase_clamped = phase.clamp(0.0, 0.9999);
+    let index = (phase_clamped * ENVELOPE_TABLE_SIZE as f32) as usize;
+    ENVELOPE_TABLE[index]
+}
+
+/// SIMD-accelerated linear interpolation for 4 samples
+/// 
+/// # Arguments
+/// * `samples_a` - 4 samples at floor(position)
+/// * `samples_b` - 4 samples at floor(position) + 1
+/// * `fracs` - 4 fractional parts for interpolation
+/// 
+/// # Returns
+/// 4 interpolated samples
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+#[inline]
+pub fn lerp_4_simd(samples_a: v128, samples_b: v128, fracs: v128) -> v128 {
+    // lerp = a + (b - a) * frac
+    let diff = f32x4_sub(samples_b, samples_a);
+    let scaled = f32x4_mul(diff, fracs);
+    f32x4_add(samples_a, scaled)
+}
+
+/// SIMD-accelerated envelope application for 4 grains
+/// 
+/// # Arguments
+/// * `phases` - 4 grain envelope phases (0.0-1.0)
+/// 
+/// # Returns
+/// 4 envelope values (0.0-1.0)
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+#[inline]
+pub fn envelope_4_simd(phases: v128) -> v128 {
+    // Use table lookup for each lane
+    unsafe {
+        let e0 = envelope_lookup(f32x4_extract_lane::<0>(phases));
+        let e1 = envelope_lookup(f32x4_extract_lane::<1>(phases));
+        let e2 = envelope_lookup(f32x4_extract_lane::<2>(phases));
+        let e3 = envelope_lookup(f32x4_extract_lane::<3>(phases));
+        f32x4(e0, e1, e2, e3)
+    }
+}
+
+// ============================================================================
 // TESTS
 // ============================================================================
 

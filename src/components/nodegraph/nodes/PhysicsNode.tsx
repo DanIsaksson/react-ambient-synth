@@ -85,6 +85,7 @@ export const PhysicsNode = memo(({ id, data, selected }: PhysicsNodeProps) => {
             type="control" 
             selected={selected}
             nodeId={id}
+            nodeType="physics"
             handles={HANDLE_PRESETS.physics}
             icon="⚛️"
         >

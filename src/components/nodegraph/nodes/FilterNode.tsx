@@ -41,6 +41,7 @@ export const FilterNode = memo(({ id, data, selected }: FilterNodeProps) => {
             type="effect" 
             selected={selected}
             nodeId={id}
+            nodeType="filter"
             handles={HANDLE_PRESETS.filter}
             icon="⫘"
         >

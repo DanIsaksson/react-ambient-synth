@@ -178,6 +178,7 @@ export const EuclideanNode = memo(({ id, data, selected }: EuclideanNodeProps) =
       type="control"
       selected={selected}
       nodeId={id}
+      nodeType="euclidean"
       handles={HANDLE_PRESETS.sequencer}
       icon="◐"
     >

@@ -30,12 +30,12 @@ export const SequencerNode = memo(({ id, data, selected }: SequencerNodeProps) =
     const [currentStep, setCurrentStep] = useState(0);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-    // Step sequencer animation (visual only)
+    // Step sequencer animation (visual only - synced with worklet timing)
     useEffect(() => {
         if (isPlaying) {
-            const intervalMs = (60 / bpm) * 1000 / 2; // 8th notes
+            const intervalMs = (60 / bpm) * 1000 / 2; // 8th notes (same as worklet)
             intervalRef.current = setInterval(() => {
-                setCurrentStep(prev => (prev + 1) % 8);
+                setCurrentStep(prev => (prev + 1) % steps.length);
             }, intervalMs);
         } else {
             setCurrentStep(0);
@@ -43,7 +43,7 @@ export const SequencerNode = memo(({ id, data, selected }: SequencerNodeProps) =
         return () => {
             if (intervalRef.current !== null) clearInterval(intervalRef.current);
         };
-    }, [isPlaying, bpm]);
+    }, [isPlaying, bpm, steps.length]);
 
     // Handlers that update the store
     const handleBpmChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -66,6 +66,7 @@ export const SequencerNode = memo(({ id, data, selected }: SequencerNodeProps) =
             type="control" 
             selected={selected}
             nodeId={id}
+            nodeType="sequencer"
             handles={HANDLE_PRESETS.sequencer}
             icon="⏱️"
         >
@@ -73,7 +74,7 @@ export const SequencerNode = memo(({ id, data, selected }: SequencerNodeProps) =
                 {/* Step Grid */}
                 <div className="bg-black/40 rounded-lg p-3 border border-white/5">
                     <div className="grid grid-cols-8 gap-1.5">
-                        {steps.map((active, i) => (
+                        {steps.map((active: boolean, i: number) => (
                             <button
                                 key={i}
                                 onClick={() => toggleStep(i)}

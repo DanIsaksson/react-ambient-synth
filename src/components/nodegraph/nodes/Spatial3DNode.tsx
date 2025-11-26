@@ -182,6 +182,7 @@ export const Spatial3DNodeComponent = memo(({ id, data, selected }: Spatial3DNod
       type="effect"
       selected={selected}
       nodeId={id}
+      nodeType="spatial"
       handles={[
         { id: 'in', type: 'target' as const, position: 'left' as const, color: 'cyan', offset: 50 },
         { id: 'out', type: 'source' as const, position: 'right' as const, color: 'cyan', offset: 50 },

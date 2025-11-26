@@ -20,6 +20,7 @@
 //! ```
 
 use std::ptr;
+use core::ptr::{addr_of, addr_of_mut};
 
 // ============================================================================
 // MEMORY LAYOUT CONSTANTS
@@ -135,15 +136,18 @@ pub fn init_engine(sample_rate: f32, buffer_size: u32) -> u32 {
 
         // Get pointer to state at fixed offset
         // In WASM, memory starts at 0 and we use fixed offsets
-        ENGINE = STATE_OFFSET as *mut EngineState;
+        // SAFETY: Single-threaded WASM context, using raw pointer for Rust 2024
+        let engine_ptr = addr_of_mut!(ENGINE);
+        *engine_ptr = STATE_OFFSET as *mut EngineState;
         
         // Initialize state struct
-        (*ENGINE).sample_rate = sample_rate;
-        (*ENGINE).buffer_size = buffer_size;
-        (*ENGINE).flags = FLAG_INITIALIZED;
-        (*ENGINE).granular_source_len = 0;
-        (*ENGINE).ir_len = 0;
-        (*ENGINE)._reserved = [0u8; 232];
+        let engine = *engine_ptr;
+        (*engine).sample_rate = sample_rate;
+        (*engine).buffer_size = buffer_size;
+        (*engine).flags = FLAG_INITIALIZED;
+        (*engine).granular_source_len = 0;
+        (*engine).ir_len = 0;
+        (*engine)._reserved = [0u8; 232];
 
         // Zero all I/O buffers to prevent garbage on first process
         zero_buffer(INPUT_L_OFFSET, BUFFER_BYTES);
@@ -226,7 +230,8 @@ pub fn get_output_buffer(channel: u32) -> *const f32 {
 #[inline]
 pub unsafe fn input_slice(channel: u32) -> &'static [f32] {
     let ptr = get_input_buffer(channel);
-    let len = (*ENGINE).buffer_size as usize;
+    let engine = *addr_of!(ENGINE);
+    let len = (*engine).buffer_size as usize;
     std::slice::from_raw_parts(ptr, len)
 }
 
@@ -237,7 +242,8 @@ pub unsafe fn input_slice(channel: u32) -> &'static [f32] {
 #[inline]
 pub unsafe fn output_slice_mut(channel: u32) -> &'static mut [f32] {
     let ptr = get_output_buffer(channel) as *mut f32;
-    let len = (*ENGINE).buffer_size as usize;
+    let engine = *addr_of!(ENGINE);
+    let len = (*engine).buffer_size as usize;
     std::slice::from_raw_parts_mut(ptr, len)
 }
 
@@ -280,9 +286,10 @@ pub fn get_granular_source_ptr() -> *mut f32 {
 /// # Safety
 /// Engine must be initialized.
 pub unsafe fn set_granular_source_len(length: u32) {
-    if !ENGINE.is_null() {
-        (*ENGINE).granular_source_len = length;
-        (*ENGINE).flags |= FLAG_GRANULAR_READY;
+    let engine = *addr_of!(ENGINE);
+    if !engine.is_null() {
+        (*engine).granular_source_len = length;
+        (*engine).flags |= FLAG_GRANULAR_READY;
     }
 }
 
@@ -292,7 +299,8 @@ pub unsafe fn set_granular_source_len(length: u32) {
 /// Engine must be initialized and granular source must be loaded.
 #[inline]
 pub unsafe fn granular_source_slice() -> &'static [f32] {
-    let len = (*ENGINE).granular_source_len as usize;
+    let engine = *addr_of!(ENGINE);
+    let len = (*engine).granular_source_len as usize;
     std::slice::from_raw_parts(GRANULAR_SOURCE_OFFSET as *const f32, len)
 }
 
@@ -317,9 +325,10 @@ pub fn get_ir_ptr() -> *mut f32 {
 /// # Safety
 /// Engine must be initialized.
 pub unsafe fn set_ir_len(length: u32) {
-    if !ENGINE.is_null() {
-        (*ENGINE).ir_len = length;
-        (*ENGINE).flags |= FLAG_IR_READY;
+    let engine = *addr_of!(ENGINE);
+    if !engine.is_null() {
+        (*engine).ir_len = length;
+        (*engine).flags |= FLAG_IR_READY;
     }
 }
 
@@ -329,7 +338,8 @@ pub unsafe fn set_ir_len(length: u32) {
 /// Engine must be initialized and IR must be loaded.
 #[inline]
 pub unsafe fn ir_slice() -> &'static [f32] {
-    let len = (*ENGINE).ir_len as usize;
+    let engine = *addr_of!(ENGINE);
+    let len = (*engine).ir_len as usize;
     std::slice::from_raw_parts(IR_OFFSET as *const f32, len)
 }
 
@@ -343,8 +353,9 @@ pub unsafe fn ir_slice() -> &'static [f32] {
 /// Engine must be initialized.
 #[inline]
 pub fn sample_rate() -> f32 {
-    unsafe { 
-        if ENGINE.is_null() { 44100.0 } else { (*ENGINE).sample_rate }
+    unsafe {
+        let engine = *addr_of!(ENGINE);
+        if engine.is_null() { 44100.0 } else { (*engine).sample_rate }
     }
 }
 
@@ -354,16 +365,18 @@ pub fn sample_rate() -> f32 {
 /// Engine must be initialized.
 #[inline]
 pub fn buffer_size() -> u32 {
-    unsafe { 
-        if ENGINE.is_null() { 128 } else { (*ENGINE).buffer_size }
+    unsafe {
+        let engine = *addr_of!(ENGINE);
+        if engine.is_null() { 128 } else { (*engine).buffer_size }
     }
 }
 
 /// Check if engine is initialized
 #[inline]
 pub fn is_initialized() -> bool {
-    unsafe { 
-        !ENGINE.is_null() && ((*ENGINE).flags & FLAG_INITIALIZED) != 0 
+    unsafe {
+        let engine = *addr_of!(ENGINE);
+        !engine.is_null() && ((*engine).flags & FLAG_INITIALIZED) != 0
     }
 }
 
@@ -371,7 +384,8 @@ pub fn is_initialized() -> bool {
 #[inline]
 pub fn is_granular_ready() -> bool {
     unsafe {
-        !ENGINE.is_null() && ((*ENGINE).flags & FLAG_GRANULAR_READY) != 0
+        let engine = *addr_of!(ENGINE);
+        !engine.is_null() && ((*engine).flags & FLAG_GRANULAR_READY) != 0
     }
 }
 
@@ -379,7 +393,8 @@ pub fn is_granular_ready() -> bool {
 #[inline]
 pub fn is_ir_ready() -> bool {
     unsafe {
-        !ENGINE.is_null() && ((*ENGINE).flags & FLAG_IR_READY) != 0
+        let engine = *addr_of!(ENGINE);
+        !engine.is_null() && ((*engine).flags & FLAG_IR_READY) != 0
     }
 }
 
@@ -393,11 +408,13 @@ pub fn is_ir_ready() -> bool {
 /// so the engine can be re-initialized if needed.
 pub fn cleanup() {
     unsafe {
-        if !ENGINE.is_null() {
-            (*ENGINE).flags = 0;
-            (*ENGINE).granular_source_len = 0;
-            (*ENGINE).ir_len = 0;
+        let engine_ptr = addr_of_mut!(ENGINE);
+        let engine = *engine_ptr;
+        if !engine.is_null() {
+            (*engine).flags = 0;
+            (*engine).granular_source_len = 0;
+            (*engine).ir_len = 0;
         }
-        ENGINE = ptr::null_mut();
+        *engine_ptr = ptr::null_mut();
     }
 }

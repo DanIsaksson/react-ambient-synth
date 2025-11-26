@@ -1,4 +1,4 @@
-import { memo, useState, useCallback } from 'react';
+import { memo, useCallback } from 'react';
 import { BaseNode, HANDLE_PRESETS } from './BaseNode';
 import { useNodeGraphStore } from '../../../store/nodeGraphStore';
 import { ModulatableSlider } from '../shared/ModulatableSlider';
@@ -10,13 +10,12 @@ interface KarplusNodeProps {
         damping?: number;
         stiffness?: number;
         brightness?: number;
-        trigger?: boolean;
-        [key: string]: any;
+        [key: string]: unknown;
     };
     selected?: boolean;
 }
 
-export const KarplusNode = memo(({ id, data, selected }: KarplusNodeProps) => {
+export const KarplusNode = memo(({ id, selected }: KarplusNodeProps) => {
     const updateNodeData = useNodeGraphStore(state => state.updateNodeData);
     
     // Read directly from Zustand store (NOT from ReactFlow's potentially stale props)
@@ -24,9 +23,6 @@ export const KarplusNode = memo(({ id, data, selected }: KarplusNodeProps) => {
     const damping = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.damping ?? 0.5);
     const stiffness = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.stiffness ?? 0);
     const brightness = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.brightness ?? 0.5);
-    
-    // Local UI state for visual feedback
-    const [isPlucking, setIsPlucking] = useState(false);
 
     // Handlers for modulatable parameters
     const handleFrequencyChange = useCallback((value: number) => {
@@ -45,22 +41,13 @@ export const KarplusNode = memo(({ id, data, selected }: KarplusNodeProps) => {
         updateNodeData(id, { brightness: value });
     }, [id, updateNodeData]);
 
-    const handlePluck = useCallback(() => {
-        setIsPlucking(true);
-        // Visual feedback animation
-        setTimeout(() => setIsPlucking(false), 150);
-        // Send trigger to worklet via store (will be synced to AudioWorklet)
-        updateNodeData(id, { trigger: true });
-        // Reset trigger after brief delay
-        setTimeout(() => updateNodeData(id, { trigger: false }), 50);
-    }, [id, updateNodeData]);
-
     return (
         <BaseNode 
-            title="Karplus-Strong" 
+            title="Karplus-String" 
             type="source" 
             selected={selected}
             nodeId={id}
+            nodeType="karplus"
             handles={HANDLE_PRESETS.stringSynth}
             icon="🎸"
         >
@@ -75,16 +62,13 @@ export const KarplusNode = memo(({ id, data, selected }: KarplusNodeProps) => {
                                 <stop offset="100%" stopColor="#ec4899" stopOpacity="0.2" />
                             </linearGradient>
                         </defs>
-                        {/* String line */}
+                        {/* String line - animated via CSS */}
                         <path 
-                            d={isPlucking 
-                                ? "M 0 15 Q 45 0, 90 15 Q 135 30, 180 15" 
-                                : "M 0 15 L 180 15"
-                            }
+                            d="M 0 15 L 180 15"
                             stroke="url(#stringGrad)"
                             strokeWidth="2"
                             fill="none"
-                            className={`transition-all duration-150 ${isPlucking ? 'drop-shadow-[0_0_8px_rgba(236,72,153,0.8)]' : ''}`}
+                            className="transition-all duration-150"
                         />
                         {/* Bridge dots */}
                         <circle cx="5" cy="15" r="3" fill="#ec4899" opacity="0.6" />
@@ -148,32 +132,21 @@ export const KarplusNode = memo(({ id, data, selected }: KarplusNodeProps) => {
                     formatValue={(v) => `${(v * 100).toFixed(0)}%`}
                 />
 
-                {/* Pluck Button */}
-                <button 
-                    onClick={handlePluck}
+                {/* Connection hint */}
+                <div 
                     style={{
-                        width: '100%',
-                        padding: '10px 16px',
+                        padding: '8px 12px',
                         borderRadius: 8,
-                        border: isPlucking ? '1px solid #ec4899' : '1px solid rgba(236,72,153,0.4)',
-                        background: isPlucking 
-                            ? 'linear-gradient(135deg, rgba(236,72,153,0.4) 0%, rgba(236,72,153,0.2) 100%)' 
-                            : 'linear-gradient(135deg, rgba(236,72,153,0.1) 0%, rgba(236,72,153,0.05) 100%)',
-                        color: isPlucking ? '#fff' : '#ec4899',
-                        fontSize: 11,
-                        fontWeight: 700,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.1em',
-                        boxShadow: isPlucking 
-                            ? '0 0 25px rgba(236,72,153,0.5), inset 0 0 15px rgba(236,72,153,0.2)' 
-                            : '0 0 0 rgba(236,72,153,0)',
-                        transition: 'all 150ms ease',
-                        cursor: 'pointer',
-                        transform: isPlucking ? 'scale(0.97)' : 'scale(1)',
+                        border: '1px solid rgba(236,72,153,0.2)',
+                        background: 'rgba(236,72,153,0.05)',
+                        fontSize: 9,
+                        color: '#ec4899',
+                        textAlign: 'center',
+                        opacity: 0.7,
                     }}
                 >
-                    ⚡ Pluck
-                </button>
+                    Connect Euclidean, Sequencer, or Oscillator to input
+                </div>
             </div>
         </BaseNode>
     );

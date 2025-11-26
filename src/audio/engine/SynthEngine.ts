@@ -1,14 +1,41 @@
 import type { AudioMessage } from '../types';
 
+// Callback type for sample trigger events from the worklet
+type SampleTriggerCallback = (nodeId: string, sampleId?: string) => void;
+
+// Timestamped message for queue TTL management
+interface TimestampedMessage {
+    message: AudioMessage | any;
+    timestamp: number;
+}
+
 export class SynthEngine {
     private context: AudioContext;
     private workletNode: AudioWorkletNode | null = null;
     private output: GainNode;
-    private pendingMessages: (AudioMessage | any)[] = [];
+    private pendingMessages: TimestampedMessage[] = [];
+    
+    // Message queue constraints (P1 robustness)
+    private readonly MAX_QUEUE_SIZE = 100;
+    private readonly MESSAGE_TTL_MS = 5000;
+    
+    // Worklet health monitoring
+    private lastHeartbeat: number = 0;
+    private heartbeatCheckInterval: number | null = null;
+    private readonly HEARTBEAT_TIMEOUT_MS = 5000;
+    private onSampleTrigger: SampleTriggerCallback | null = null;
 
     constructor(context: AudioContext) {
         this.context = context;
         this.output = this.context.createGain();
+    }
+
+    /**
+     * Set callback for when worklet triggers a sample node.
+     * This bridges the worklet → main thread → SampleEngine communication.
+     */
+    public setOnSampleTrigger(callback: SampleTriggerCallback): void {
+        this.onSampleTrigger = callback;
     }
 
     public async init() {
@@ -18,6 +45,25 @@ export class SynthEngine {
             await this.context.audioWorklet.addModule(new URL('../worklets/main-processor.js', import.meta.url).href);
             this.workletNode = new AudioWorkletNode(this.context, 'main-processor');
             this.workletNode.connect(this.output);
+            
+            // Listen for messages from worklet (e.g., sample triggers, heartbeats)
+            this.workletNode.port.onmessage = (event) => {
+                const data = event.data;
+                
+                // Handle heartbeat from worklet
+                if (data.type === 'HEARTBEAT') {
+                    this.lastHeartbeat = Date.now();
+                    return;
+                }
+                
+                if (data.type === 'SAMPLE_TRIGGER' && this.onSampleTrigger) {
+                    this.onSampleTrigger(data.nodeId, data.sampleId);
+                }
+            };
+            
+            // Start health monitoring
+            this.setupHealthMonitoring();
+            
             console.log("SynthEngine: AudioWorklet loaded successfully");
             
             // Flush any messages that arrived before worklet was ready
@@ -29,16 +75,55 @@ export class SynthEngine {
 
     /**
      * Flushes queued messages that arrived before the worklet was ready.
+     * Filters out stale messages beyond TTL.
      * Called automatically at end of init().
      */
-    private flushPendingMessages() {
-        if (this.workletNode && this.pendingMessages.length > 0) {
-            console.log(`SynthEngine: Flushing ${this.pendingMessages.length} queued messages`);
-            for (const msg of this.pendingMessages) {
-                this.workletNode.port.postMessage(msg);
+    private flushPendingMessages(): void {
+        if (!this.workletNode || this.pendingMessages.length === 0) return;
+        
+        const now = Date.now();
+        let staleCount = 0;
+        let sentCount = 0;
+        
+        for (const { message, timestamp } of this.pendingMessages) {
+            // Skip stale messages
+            if (now - timestamp > this.MESSAGE_TTL_MS) {
+                staleCount++;
+                continue;
             }
-            this.pendingMessages = [];
+            this.workletNode.port.postMessage(message);
+            sentCount++;
         }
+        
+        if (staleCount > 0) {
+            console.warn(`[SynthEngine] Dropped ${staleCount} stale messages (TTL exceeded)`);
+        }
+        if (sentCount > 0) {
+            console.log(`[SynthEngine] Flushed ${sentCount} queued messages`);
+        }
+        
+        this.pendingMessages = [];
+    }
+    
+    /**
+     * Setup worklet health monitoring via heartbeat.
+     * Detects if worklet has stalled and logs warning.
+     */
+    private setupHealthMonitoring(): void {
+        this.lastHeartbeat = Date.now();
+        
+        // Check heartbeat every 2 seconds
+        this.heartbeatCheckInterval = window.setInterval(() => {
+            const timeSinceHeartbeat = Date.now() - this.lastHeartbeat;
+            
+            if (timeSinceHeartbeat > this.HEARTBEAT_TIMEOUT_MS) {
+                console.error(
+                    `[SynthEngine] Worklet heartbeat timeout (${timeSinceHeartbeat}ms since last heartbeat)`
+                );
+                // Don't auto-recover - just log for now. Recovery could cause audio glitches.
+                // Future: emit event for UI to offer recovery option
+            }
+        }, 2000) as unknown as number;
     }
 
     public connect(destination: AudioNode) {
@@ -46,26 +131,69 @@ export class SynthEngine {
         console.log('[SynthEngine] Connected to destination. Output gain:', this.output.gain.value);
     }
 
-    public sendMessage(message: AudioMessage | any) {
+    public sendMessage(message: AudioMessage | any): void {
         if (this.workletNode) {
             this.workletNode.port.postMessage(message);
         } else {
-            // Queue message for when worklet is ready instead of dropping it
-            this.pendingMessages.push(message);
-            console.log("SynthEngine: Message queued (worklet loading...)");
+            // Queue message with timestamp for TTL management
+            if (this.pendingMessages.length >= this.MAX_QUEUE_SIZE) {
+                // Drop oldest message to make room
+                const dropped = this.pendingMessages.shift();
+                console.warn(
+                    `[SynthEngine] Message queue full (${this.MAX_QUEUE_SIZE}), dropped oldest message:`,
+                    dropped?.message?.action
+                );
+            }
+            
+            this.pendingMessages.push({
+                message,
+                timestamp: Date.now(),
+            });
+            
+            // Only log occasionally to avoid console spam
+            if (this.pendingMessages.length === 1 || this.pendingMessages.length % 10 === 0) {
+                console.log(`[SynthEngine] Message queued (${this.pendingMessages.length} pending, worklet loading...)`);
+            }
         }
     }
 
     /**
-     * Cleanup: disconnect worklet and clear pending messages.
+     * Send sample buffer to worklet for granular texture processing.
+     * Transfers Float32Array data to the worklet for a specific node.
      */
-    public dispose() {
+    public loadSampleBuffer(nodeId: string, buffer: Float32Array, bufferSampleRate: number): void {
+        if (this.workletNode) {
+            this.workletNode.port.postMessage({
+                target: 'system',
+                action: 'LOAD_SAMPLE_BUFFER',
+                payload: {
+                    nodeId,
+                    buffer: Array.from(buffer), // Convert to regular array for transfer
+                    sampleRate: bufferSampleRate,
+                },
+            });
+            console.log(`[SynthEngine] Sent sample buffer for node ${nodeId}, length: ${buffer.length}`);
+        } else {
+            console.warn('[SynthEngine] Cannot load sample buffer: worklet not ready');
+        }
+    }
+
+    /**
+     * Cleanup: disconnect worklet, clear pending messages, stop health monitoring.
+     */
+    public dispose(): void {
+        // Stop health monitoring
+        if (this.heartbeatCheckInterval !== null) {
+            clearInterval(this.heartbeatCheckInterval);
+            this.heartbeatCheckInterval = null;
+        }
+        
         if (this.workletNode) {
             this.workletNode.disconnect();
             this.workletNode = null;
         }
         this.pendingMessages = [];
-        console.log("SynthEngine: Disposed");
+        console.log('[SynthEngine] Disposed');
     }
 
     /**

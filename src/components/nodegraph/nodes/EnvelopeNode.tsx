@@ -70,6 +70,7 @@ export const EnvelopeNode = memo(({ id, data, selected }: EnvelopeNodeProps) => 
             type="control" 
             selected={selected}
             nodeId={id}
+            nodeType="envelope"
             handles={HANDLE_PRESETS.envelope}
             icon="📈"
         >

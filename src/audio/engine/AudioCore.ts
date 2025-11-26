@@ -54,6 +54,15 @@ export class AudioCore {
         console.log('[AudioCore] Initializing SampleEngine...');
         await this.samples.init();
 
+        // Bridge: When worklet sends SAMPLE_TRIGGER, call SampleEngine
+        // This enables Sequencer/Euclidean → Sample node triggering via graph
+        this.synth.setOnSampleTrigger((nodeId: string, sampleId?: string) => {
+            console.log(`[AudioCore] Sample trigger received: node=${nodeId}, sample=${sampleId}`);
+            if (this.samples && sampleId) {
+                this.samples.retrigger(nodeId);
+            }
+        });
+
         this.isInitialized = true;
         console.log('[AudioCore] ✓ Initialization complete. Context state:', this.context.state);
     }

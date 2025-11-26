@@ -25,6 +25,8 @@ import { SampleNode } from './nodes/SampleNode';
 import { SignalEdge } from './edges/SignalEdge';
 import { ModulationEdge } from './edges/ModulationEdge';
 import { ModulationAmountEditor } from './shared/ModulatableSlider';
+import { validateConnection, getSignalTypeName, getHandleSignalType } from './handleTypes';
+import { useConnectionStateStore } from '../../store/connectionStateStore';
 
 // ============================================================================
 // NODE & EDGE TYPE REGISTRATION
@@ -35,9 +37,6 @@ const edgeTypes = {
     modulation: ModulationEdge,
 };
 const defaultEdgeOptions = { type: 'signal', animated: true };
-
-// Control node types that can be modulation sources
-const CONTROL_NODE_TYPES = ['lfo', 'envelope', 'noise'];
 
 const nodeTypes = {
     oscillator: OscillatorNode,
@@ -140,18 +139,33 @@ const NodeEditorContent: React.FC = () => {
         }));
     }, [nodes]);
 
-    // Connection validation - only allow control nodes to connect to mod-* handles
+    // Connection validation - enforce signal type compatibility
     const isValidConnection = useCallback((connection: Connection | { source: string; target: string; sourceHandle?: string | null; targetHandle?: string | null }) => {
         const sourceNode = nodes.find(n => n.id === connection.source);
-        const targetHandle = connection.targetHandle;
+        const targetNode = nodes.find(n => n.id === connection.target);
         
-        // If connecting to a mod-* handle, source must be a control node
-        if (targetHandle?.startsWith('mod-')) {
-            const isControlNode = sourceNode && CONTROL_NODE_TYPES.includes(sourceNode.type || '');
-            if (!isControlNode) {
-                console.log('[NodeEditor] Invalid connection: only control nodes can connect to mod handles');
-                return false;
-            }
+        if (!sourceNode || !targetNode) {
+            return false;
+        }
+        
+        const sourceType = sourceNode.type || '';
+        const targetType = targetNode.type || '';
+        const sourceHandle = connection.sourceHandle || 'out';
+        const targetHandle = connection.targetHandle || 'in';
+        
+        // Use the signal type validation system
+        const result = validateConnection(sourceType, sourceHandle, targetType, targetHandle);
+        
+        if (!result.valid) {
+            // Get signal types for better error message
+            const srcSignal = getHandleSignalType(sourceType, sourceHandle);
+            const tgtSignal = getHandleSignalType(targetType, targetHandle);
+            
+            console.log(
+                `[NodeEditor] Invalid connection: ${srcSignal ? getSignalTypeName(srcSignal) : 'unknown'} → ${tgtSignal ? getSignalTypeName(tgtSignal) : 'unknown'}`,
+                result.reason
+            );
+            return false;
         }
         
         return true;
@@ -173,6 +187,26 @@ const NodeEditorContent: React.FC = () => {
     const closeModEditor = useCallback(() => {
         setActiveModEditor(null);
     }, []);
+
+    // Connection state tracking for visual feedback
+    const { startConnection, endConnection } = useConnectionStateStore();
+    
+    // Track when a connection drag starts
+    const onConnectStart = useCallback((_event: MouseEvent | TouchEvent, params: { nodeId: string | null; handleId: string | null; handleType: 'source' | 'target' | null }) => {
+        if (!params.nodeId || !params.handleId || !params.handleType) return;
+        
+        const node = nodes.find(n => n.id === params.nodeId);
+        if (!node) return;
+        
+        console.log('[NodeEditor] Connection start:', params.nodeId, params.handleId, params.handleType);
+        startConnection(params.nodeId, node.type || '', params.handleId, params.handleType);
+    }, [nodes, startConnection]);
+    
+    // Track when a connection drag ends
+    const onConnectEnd = useCallback((_event: MouseEvent | TouchEvent) => {
+        console.log('[NodeEditor] Connection end');
+        endConnection();
+    }, [endConnection]);
 
     // Handle edge click - delete for signal edges, ignore for modulation (use badge)
     const onEdgeClick = useCallback((_event: React.MouseEvent, edge: { id: string; type?: string }) => {
@@ -272,6 +306,8 @@ const NodeEditorContent: React.FC = () => {
                     onEdgesChange={onEdgesChange}
                     onConnect={handleConnect}
                     isValidConnection={isValidConnection}
+                    onConnectStart={onConnectStart}
+                    onConnectEnd={onConnectEnd}
                     onEdgeClick={onEdgeClick}
                     onDragOver={onDragOver}
                     onDrop={onDrop}

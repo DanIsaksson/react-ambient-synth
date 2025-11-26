@@ -17,6 +17,7 @@
 use crate::memory;
 use rustfft::{FftPlanner, num_complex::Complex};
 use core::f32::consts::PI;
+use core::ptr::addr_of_mut;
 
 // ============================================================================
 // CONSTANTS
@@ -79,14 +80,16 @@ static mut STATE: Option<SpectralState> = None;
 /// Ensure spectral state is initialized
 fn ensure_state() -> &'static mut SpectralState {
     unsafe {
-        if STATE.is_none() {
+        // SAFETY: Single-threaded WASM context, using raw pointer for Rust 2024
+        let state_ptr = addr_of_mut!(STATE);
+        if (*state_ptr).is_none() {
             // Create Hann window
             let mut window = vec![0.0; FFT_SIZE];
             for i in 0..FFT_SIZE {
                 window[i] = 0.5 - 0.5 * (2.0 * PI * i as f32 / FFT_SIZE as f32).cos();
             }
             
-            STATE = Some(SpectralState {
+            *state_ptr = Some(SpectralState {
                 planner: FftPlanner::new(),
                 input_buffer_l: vec![0.0; FFT_SIZE],
                 input_buffer_r: vec![0.0; FFT_SIZE],
@@ -108,7 +111,7 @@ fn ensure_state() -> &'static mut SpectralState {
                 initialized: true,
             });
         }
-        STATE.as_mut().unwrap()
+        (*state_ptr).as_mut().unwrap()
     }
 }
 
@@ -345,7 +348,9 @@ fn process_frame(
 
 /// Reset spectral state
 pub fn reset() {
-    if let Some(state) = unsafe { STATE.as_mut() } {
+    // SAFETY: Single-threaded WASM context
+    let state_ptr = unsafe { addr_of_mut!(STATE) };
+    if let Some(state) = unsafe { (*state_ptr).as_mut() } {
         state.input_buffer_l.fill(0.0);
         state.input_buffer_r.fill(0.0);
         state.output_buffer_l.fill(0.0);

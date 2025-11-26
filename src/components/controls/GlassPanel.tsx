@@ -128,12 +128,15 @@ export const GlassPanel: React.FC<GlassPanelProps> = ({
 
   const panelStyle: React.CSSProperties = {
     background: 'rgba(10, 10, 15, 0.7)',
-    backdropFilter: 'blur(12px)',
-    WebkitBackdropFilter: 'blur(12px)',
+    // PERF: Reduced blur from 12px to 8px for better GPU performance
+    backdropFilter: 'blur(8px)',
+    WebkitBackdropFilter: 'blur(8px)',
     borderRadius: 16,
     border: `1px solid ${colors.border}`,
     boxShadow: `0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 0 20px ${colors.glow}`,
     overflow: 'hidden',
+    // PERF: Hint to GPU for compositor layer optimization
+    willChange: animate ? 'transform, opacity' : 'auto',
     ...style,
   };
 

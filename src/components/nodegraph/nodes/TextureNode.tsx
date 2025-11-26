@@ -2,13 +2,15 @@
  * TextureNode - UI component for Granular Synthesis in the node graph.
  * 
  * Provides cloud/density controls for lush, evolving textures.
+ * Audio processing happens in the AudioWorklet (processTextures).
  * 
  * @module components/nodegraph/nodes/TextureNode
  */
 
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useEffect, useRef } from 'react';
 import { BaseNode, HANDLE_PRESETS } from './BaseNode';
 import { useNodeGraphStore } from '../../../store/nodeGraphStore';
+import { audioCore } from '../../../audio/engine/AudioCore';
 
 // ===========================================
 // SAMPLE PRESETS
@@ -85,6 +87,49 @@ export const TextureNode = memo(({ id, data, selected }: TextureNodeProps) => {
     updateNodeData(id, { playing: !isPlaying });
   }, [id, isPlaying, updateNodeData]);
 
+  // Track loaded sample to avoid redundant loads
+  const loadedSampleRef = useRef<string | null>(null);
+
+  // Load sample buffer and send to worklet when sample changes or playback starts
+  useEffect(() => {
+    // Only load if we have a sample and either playing or sample changed
+    if (!selectedSample) return;
+    
+    // Skip if already loaded this sample
+    if (loadedSampleRef.current === selectedSample) return;
+
+    const loadSampleBuffer = async () => {
+      try {
+        // Fetch the texture sample file
+        const samplePath = `/samples/textures/${selectedSample}.mp3`;
+        const response = await fetch(samplePath);
+        if (!response.ok) {
+          console.warn(`[TextureNode] Sample not found: ${samplePath}`);
+          return;
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+        const context = audioCore.getContext();
+        if (!context) return;
+
+        const audioBuffer = await context.decodeAudioData(arrayBuffer);
+        const channelData = audioBuffer.getChannelData(0); // Use first channel
+
+        // Send to worklet
+        const synth = audioCore.getSynth();
+        if (synth) {
+          synth.loadSampleBuffer(id, channelData, audioBuffer.sampleRate);
+          loadedSampleRef.current = selectedSample;
+          console.log(`[TextureNode] Loaded sample: ${selectedSample} for node ${id}`);
+        }
+      } catch (err) {
+        console.error(`[TextureNode] Failed to load sample: ${selectedSample}`, err);
+      }
+    };
+
+    loadSampleBuffer();
+  }, [id, selectedSample]);
+
   // Slider styling
   const sliderClass = `w-full h-1.5 bg-gray-800 rounded-full appearance-none cursor-pointer
     [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3
@@ -101,6 +146,7 @@ export const TextureNode = memo(({ id, data, selected }: TextureNodeProps) => {
       type="source"
       selected={selected}
       nodeId={id}
+      nodeType="texture"
       handles={HANDLE_PRESETS.sourceOnly}
       icon="☁️"
     >

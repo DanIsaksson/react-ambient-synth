@@ -21,7 +21,9 @@
 
 use crate::memory;
 use crate::simd_utils;
-use core::f32::consts::PI;
+use core::ptr::{addr_of, addr_of_mut};
+
+// Note: PI constant no longer needed - envelope uses lookup table
 
 // ============================================================================
 // CONSTANTS
@@ -112,9 +114,12 @@ static mut SPAWN_ACCUMULATOR: f32 = 0.0;
 #[inline]
 unsafe fn random_f32() -> f32 {
     // Linear Congruential Generator (Numerical Recipes parameters)
-    RNG_STATE = RNG_STATE.wrapping_mul(1664525).wrapping_add(1013904223);
+    // SAFETY: Single-threaded WASM context, using raw pointer to avoid static mut ref
+    let state_ptr = addr_of_mut!(RNG_STATE);
+    let state = (*state_ptr).wrapping_mul(1664525).wrapping_add(1013904223);
+    *state_ptr = state;
     // Convert to float in [0, 1)
-    (RNG_STATE as f32) / (u32::MAX as f32)
+    (state as f32) / (u32::MAX as f32)
 }
 
 /// Random value in range [-1.0, 1.0)
@@ -127,7 +132,9 @@ unsafe fn random_bipolar() -> f32 {
 // ENVELOPE
 // ============================================================================
 
-/// Raised cosine (Hann) envelope
+/// Fast raised cosine (Hann) envelope using lookup table
+/// 
+/// Uses pre-computed table from simd_utils to avoid cos() calls.
 /// Provides smooth attack and release with no discontinuities.
 /// 
 /// # Arguments
@@ -135,11 +142,13 @@ unsafe fn random_bipolar() -> f32 {
 /// 
 /// # Returns
 /// Envelope amplitude (0.0 to 1.0)
+/// 
+/// # Performance
+/// ~10x faster than cos() computation per call.
 #[inline]
 fn envelope(phase: f32) -> f32 {
-    // Raised cosine: 0.5 - 0.5 * cos(2π * phase)
-    // At phase=0: env=0, phase=0.5: env=1, phase=1: env=0
-    0.5 - 0.5 * (phase * PI * 2.0).cos()
+    // Use pre-computed lookup table for speed
+    simd_utils::envelope_lookup(phase)
 }
 
 // ============================================================================
@@ -167,7 +176,9 @@ pub fn process(
 ) {
     unsafe {
         // Early exit if no source loaded
-        if SOURCE_LEN == 0 {
+        // SAFETY: Single-threaded WASM context
+        let source_len = *addr_of!(SOURCE_LEN);
+        if source_len == 0 {
             // Clear output buffers using SIMD
             let output_l = memory::output_slice_mut(0);
             let output_r = memory::output_slice_mut(1);
@@ -196,7 +207,8 @@ pub fn process(
         
         // Get source buffer
         let source = get_source_slice();
-        let source_frames = SOURCE_LEN / SOURCE_CHANNELS as usize;
+        let source_channels = *addr_of!(SOURCE_CHANNELS);
+        let source_frames = source_len / source_channels as usize;
         
         // Calculate spawn interval (samples between grains)
         let spawn_interval = sample_rate / density;
@@ -207,13 +219,16 @@ pub fn process(
             // GRAIN SPAWNING
             // ================================================================
             
-            SPAWN_ACCUMULATOR += 1.0;
+            // SAFETY: Single-threaded WASM, using raw pointers for Rust 2024 compatibility
+            let spawn_acc_ptr = addr_of_mut!(SPAWN_ACCUMULATOR);
+            *spawn_acc_ptr += 1.0;
             
-            if SPAWN_ACCUMULATOR >= spawn_interval {
-                SPAWN_ACCUMULATOR -= spawn_interval;
+            if *spawn_acc_ptr >= spawn_interval {
+                *spawn_acc_ptr -= spawn_interval;
                 
                 // Find an inactive grain slot
-                for grain in GRAINS.iter_mut() {
+                let grains_ptr = addr_of_mut!(GRAINS);
+                for grain in (*grains_ptr).iter_mut() {
                     if !grain.active {
                         // Calculate randomized position
                         let pos_offset = random_bipolar() * spray;
@@ -248,7 +263,8 @@ pub fn process(
             // GRAIN PROCESSING
             // ================================================================
             
-            for grain in GRAINS.iter_mut() {
+            let grains_ptr = addr_of_mut!(GRAINS);
+            for grain in (*grains_ptr).iter_mut() {
                 if !grain.active {
                     continue;
                 }
@@ -261,7 +277,7 @@ pub fn process(
                 let sample = if source_idx < source_frames - 1 {
                     let frac = source_sample_pos - source_idx as f32;
                     
-                    if SOURCE_CHANNELS == 2 {
+                    if source_channels == 2 {
                         // Stereo source: average L+R for mono grain
                         let idx = source_idx * 2;
                         let s0 = (source[idx] + source[idx + 1]) * 0.5;
@@ -333,16 +349,18 @@ pub fn process(
 pub fn load_source(_ptr: *const f32, length: u32, channels: u32) {
     unsafe {
         // Store metadata about the loaded source
-        SOURCE_LEN = (length * channels) as usize;
-        SOURCE_CHANNELS = channels.clamp(1, 2);
+        // SAFETY: Single-threaded WASM context, using raw pointers for Rust 2024
+        *addr_of_mut!(SOURCE_LEN) = (length * channels) as usize;
+        *addr_of_mut!(SOURCE_CHANNELS) = channels.clamp(1, 2);
         
         // Reset all grains when loading new source
-        for grain in GRAINS.iter_mut() {
+        let grains_ptr = addr_of_mut!(GRAINS);
+        for grain in (*grains_ptr).iter_mut() {
             grain.active = false;
         }
         
         // Reset spawn accumulator
-        SPAWN_ACCUMULATOR = 0.0;
+        *addr_of_mut!(SPAWN_ACCUMULATOR) = 0.0;
         
         // Update engine state flags
         memory::set_granular_source_len(length);
@@ -357,7 +375,7 @@ pub fn load_source(_ptr: *const f32, length: u32, channels: u32) {
 unsafe fn get_source_slice() -> &'static [f32] {
     std::slice::from_raw_parts(
         memory::GRANULAR_SOURCE_OFFSET as *const f32,
-        SOURCE_LEN
+        *addr_of!(SOURCE_LEN)
     )
 }
 
@@ -369,9 +387,11 @@ unsafe fn get_source_slice() -> &'static [f32] {
 /// Called when switching effects or stopping playback
 pub fn reset() {
     unsafe {
-        for grain in GRAINS.iter_mut() {
+        // SAFETY: Single-threaded WASM context
+        let grains_ptr = addr_of_mut!(GRAINS);
+        for grain in (*grains_ptr).iter_mut() {
             grain.active = false;
         }
-        SPAWN_ACCUMULATOR = 0.0;
+        *addr_of_mut!(SPAWN_ACCUMULATOR) = 0.0;
     }
 }

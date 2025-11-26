@@ -90,6 +90,7 @@ export const ResonatorNode = memo(({ id, data, selected }: ResonatorNodeProps) =
       type="source"
       selected={selected}
       nodeId={id}
+      nodeType="resonator"
       handles={HANDLE_PRESETS.stringSynth}
       icon="🔔"
     >

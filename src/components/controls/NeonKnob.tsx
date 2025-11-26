@@ -293,7 +293,11 @@ export const NeonKnob: React.FC<NeonKnobProps> = ({
         height={size}
         viewBox={`0 0 ${size} ${size}`}
         className={`cursor-ns-resize ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-        style={{ filter: glowFilter }}
+        style={{ 
+          filter: glowFilter,
+          // PERF: Promote to compositor layer for smooth filter animations
+          willChange: 'filter',
+        }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}

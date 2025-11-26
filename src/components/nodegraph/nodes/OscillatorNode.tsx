@@ -42,6 +42,7 @@ export const OscillatorNode = memo(({ id, data, selected }: OscillatorNodeProps)
             type="source" 
             selected={selected}
             nodeId={id}
+            nodeType="oscillator"
             handles={HANDLE_PRESETS.sourceOnly}
             icon="〰️"
         >
