@@ -1,0 +1,40 @@
+{
+  "name": "Ambient Flow",
+  "short_name": "Ambient",
+  "description": "Generative ambient soundscape synthesizer - Create evolving textures, drones, and atmospheric audio",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#050505",
+  "theme_color": "#00ff88",
+  "icons": [
+    {
+      "src": "/icons/icon-512.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/icons/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["music", "entertainment", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Graph Mode",
+      "short_name": "Graph",
+      "description": "Open the node graph editor",
+      "url": "/?mode=graph"
+    },
+    {
+      "name": "Stage Mode",
+      "short_name": "Stage",
+      "description": "Open the performance view",
+      "url": "/?mode=stage"
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false
+}

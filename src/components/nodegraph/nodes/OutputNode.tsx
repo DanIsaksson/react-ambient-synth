@@ -1,5 +1,6 @@
-import { memo, useState, useEffect, useRef } from 'react';
+import { memo } from 'react';
 import { BaseNode, HANDLE_PRESETS } from './BaseNode';
+import { useAudioMeter } from '../../../hooks/useAudioMeter';
 
 interface OutputNodeProps {
     id: string;
@@ -7,29 +8,8 @@ interface OutputNodeProps {
 }
 
 export const OutputNode = memo(({ id, selected }: OutputNodeProps) => {
-    // Fake meter animation (will be replaced by real metering in Phase 6)
-    const [meterL, setMeterL] = useState(0);
-    const [meterR, setMeterR] = useState(0);
-    const animRef = useRef<number | null>(null);
-
-    useEffect(() => {
-        // Simulated meter movement for visual demonstration
-        const animate = () => {
-            setMeterL(prev => {
-                const target = 0.3 + Math.random() * 0.4;
-                return prev + (target - prev) * 0.3;
-            });
-            setMeterR(prev => {
-                const target = 0.3 + Math.random() * 0.4;
-                return prev + (target - prev) * 0.3;
-            });
-            animRef.current = requestAnimationFrame(animate);
-        };
-        animRef.current = requestAnimationFrame(animate);
-        return () => {
-            if (animRef.current) cancelAnimationFrame(animRef.current);
-        };
-    }, []);
+    // Real audio metering from master bus
+    const { left: meterL, right: meterR } = useAudioMeter(true);
 
     const getMeterColor = (level: number) => {
         if (level > 0.9) return '#ef4444'; // Red - clipping

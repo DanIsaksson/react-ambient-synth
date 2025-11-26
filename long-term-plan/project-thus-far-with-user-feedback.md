@@ -936,26 +936,162 @@ long-term-plan/investigation/
 | Slider Persistence | ✅ Fixed | `nodrag` class + direct store subscription |
 | Play/Stop in Graph Mode | ✅ Working | Header button toggles graph audio |
 | Cursor Styling | ✅ Fixed | Grab only on header, default on content |
-| Real Audio Meters | 🔜 Deferred | Placeholder animation for now |
+| Real Audio Meters | ✅ Fixed | `useAudioMeter` hook + AnalyserNode (Session 2) |
 
 ---
 
-## 18. Next Session: Phase 9 - The Stage
+## 18. Session 2: Node Audit & Critical Fixes
 
-**Phase 9: The Stage** is ready to begin. Graph Mode is now fully functional.
+**Date**: November 25, 2025 (Evening Session)
 
-### Phase 9 Deliverables:
-1. **Performance Mode UI** - Full-screen performance view
-2. **XY Pad Macro Controls** - 2D parameter control surfaces
-3. **Mute Groups** - Group nodes for quick muting/unmuting
-4. **Quantized Launching** - Sync mute toggles to beat/bar
-5. **MIDI Integration** - Web MIDI API for hardware controllers
-6. **Transport Controls** - Play/Stop/BPM/Tap Tempo
+### Issues Addressed
 
-### Remaining from earlier phases:
-- [ ] Real audio metering (OutputNode, BaseNode)
-- [ ] Modulation ring visualization on knobs
-- [ ] Matrix view for modulation routing
+This session focused on auditing all node types and fixing critical audio processing gaps.
+
+---
+
+### ✅ Fixed: Spatial Node Audio Processing
+
+**Problem**: Spatial3DNode blocked audio flow - no processing case in worklet.
+
+**Solution** (`main-processor.js`):
+- Added stereo panning based on X position (-10 to +10 → L/R)
+- Added distance attenuation (inverse model with rolloff)
+- Stereo output channels now independent
+
+**Known Limitations**:
+- Height (Y) not audible - requires HRTF
+- Distance Model selector not connected
+- Air Absorption not implemented
+
+---
+
+### ✅ Fixed: Filter Node - Real Biquad Implementation
+
+**Problem**: Filter was just `output = input * 0.9` - no actual filtering.
+
+**Solution** (`main-processor.js`):
+- Implemented proper biquad filter with coefficient calculation
+- Supports Lowpass, Highpass, Bandpass
+- Cutoff (20-20kHz) and Resonance (0.1-30) parameters
+- Coefficients only recalculated when params change (performance)
+
+---
+
+### ✅ Fixed: Output Node Real Meters
+
+**Problem**: Output meters showed fake animation, not actual audio levels.
+
+**Solution**:
+- Created `useAudioMeter.ts` hook using AnalyserNode
+- Connects to AudioCore's master output
+- RMS calculation with smoothing for visual appeal
+- Replaced fake animation in OutputNode
+
+---
+
+### ✅ Fixed: Spatial3DNode Visual Glitch
+
+**Problem**: Cyan dot stuttered when dragging due to CSS transitions.
+
+**Solution** (`Spatial3DNode.tsx`):
+- Track `isDragging` state
+- Disable transitions during drag
+- Add `will-change: left, top` for GPU optimization
+
+---
+
+### ✅ Added: Connection Validation
+
+**Problem**: Invalid edges could persist after node deletion.
+
+**Solution** (`GraphManager.ts`):
+- Filter edges before sync to worklet
+- Only include edges where both source and target nodes exist
+
+---
+
+### Node Audit Results
+
+| Category | Working | Needs Work |
+|----------|---------|------------|
+| **Sources** | oscillator, karplus, resonator, physics, sample | - |
+| **Effects** | filter ✅, spatial ✅ | - |
+| **Control** | - | lfo, envelope, noise (UI only) |
+| **Utility** | output ✅ | sequencer, euclidean (partial) |
+
+---
+
+### Created: Modulation System Architecture Plan
+
+Control nodes (LFO, Envelope, Noise) cannot modulate parameters yet. Created comprehensive plan:
+
+**Location**: `long-term-plan/node-audit-control-nodes-plan/`
+
+| Document | Contents |
+|----------|----------|
+| `01-modulation-architecture-plan.md` | High-level architecture, 6 phases, ~10-12 hours |
+| `02-worklet-modulation-spec.md` | LFO/Envelope/Noise processing, modulation routing |
+| `03-ui-modulation-spec.md` | ModulatableSlider, ModulationEdge, amount editor |
+
+**Key Architecture Decisions**:
+- Modulation processed in worklet (sample-accurate)
+- New edge type: `modulation` (dashed purple)
+- Mod target handles on parameter sliders
+- Processing order: Control → Apply Mods → Sources → Effects → Output
+
+---
+
+### Files Modified This Session
+
+```
+src/audio/worklets/main-processor.js    - Filter biquad, Spatial stereo pan
+src/audio/engine/SpatialEngine.ts       - New: Native PannerNode wrapper
+src/audio/engine/AudioCore.ts           - Integrated SpatialEngine
+src/audio/engine/GraphManager.ts        - Connection validation
+src/hooks/useAudioMeter.ts              - New: Real audio metering hook
+src/components/nodegraph/nodes/OutputNode.tsx - Real meters
+src/components/nodegraph/nodes/Spatial3DNode.tsx - Visual glitch fix + engine sync
+```
+
+---
+
+## 19. Current Status Summary
+
+**Date Updated**: November 25, 2025 (Session 2)
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Oscillator | ✅ Working | All waveforms |
+| Karplus-Strong | ✅ Working | With stiffness, damping |
+| Resonator | ✅ Working | Glass/wood/metal modes |
+| Physics | ✅ Working | Gravity simulation |
+| Sample | ✅ Working | Via SampleEngine |
+| Filter | ✅ **Fixed** | Real biquad LP/HP/BP |
+| Spatial | ✅ **Fixed** | Stereo pan + distance |
+| Output | ✅ **Fixed** | Real AnalyserNode meters |
+| LFO | ⚠️ UI Only | Needs modulation system |
+| Envelope | ⚠️ UI Only | Needs modulation system |
+| Noise | ⚠️ UI Only | Control node (Perlin drift) |
+
+---
+
+## 20. Next Session: Modulation System OR Phase 9
+
+Two options for next session:
+
+### Option A: Implement Modulation System (~10-12 hours)
+Follow plan in `node-audit-control-nodes-plan/`:
+1. Worklet modulation engine
+2. LFO/Envelope/Noise signal generation
+3. UI modulation handles
+4. ModulationEdge component
+5. Amount control popover
+
+### Option B: Continue to Phase 9 - The Stage
+Performance mode, XY pads, mute groups, MIDI integration.
+
+**Recommendation**: Modulation system is foundational - LFO→Filter.cutoff is a core synthesizer feature.
 
 ---
 *Document maintained for context continuity across sessions.*

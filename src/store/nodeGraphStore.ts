@@ -20,6 +20,13 @@ export type NodeData = {
 
 export type AppNode = Node<NodeData>;
 
+// Edge data type for modulation connections
+export interface ModulationEdgeData {
+    isModulation?: boolean;
+    amount?: number;
+    bipolar?: boolean;
+}
+
 interface NodeGraphState {
     nodes: AppNode[];
     edges: Edge[];
@@ -30,6 +37,7 @@ interface NodeGraphState {
     deleteNode: (nodeId: string) => void;
     deleteEdge: (edgeId: string) => void;
     updateNodeData: (nodeId: string, data: Partial<NodeData>) => void;
+    updateEdgeData: (edgeId: string, data: Partial<ModulationEdgeData>) => void;
 }
 
 export const useNodeGraphStore = create<NodeGraphState>((set, get) => ({
@@ -93,6 +101,15 @@ export const useNodeGraphStore = create<NodeGraphState>((set, get) => ({
                 node.id === nodeId 
                     ? { ...node, data: { ...node.data, ...newData } }
                     : node
+            ),
+        }));
+    },
+    updateEdgeData: (edgeId: string, newData: Partial<ModulationEdgeData>) => {
+        set((state) => ({
+            edges: state.edges.map(edge =>
+                edge.id === edgeId
+                    ? { ...edge, data: { ...edge.data, ...newData } }
+                    : edge
             ),
         }));
     },

@@ -11,9 +11,11 @@
  * @module components/nodegraph/nodes/Spatial3DNode
  */
 
-import { memo, useRef, useCallback, useEffect } from 'react';
+import { memo, useRef, useCallback, useEffect, useState } from 'react';
 import { BaseNode } from './BaseNode';
 import { useNodeGraphStore } from '../../../store/nodeGraphStore';
+import { audioCore } from '../../../audio/engine/AudioCore';
+import { ModulatableSlider } from '../shared/ModulatableSlider';
 
 // ===========================================
 // TYPES
@@ -40,6 +42,13 @@ interface Spatial3DNodeProps {
 }
 
 // ===========================================
+// DEFAULTS (defined outside component to prevent infinite loop)
+// Zustand compares by reference - new object = re-render = infinite loop
+// ===========================================
+
+const DEFAULT_POSITION: Position3D = { x: 0, y: 0, z: 0 };
+
+// ===========================================
 // COMPONENT
 // ===========================================
 
@@ -47,31 +56,46 @@ export const Spatial3DNodeComponent = memo(({ id, data, selected }: Spatial3DNod
   const updateNodeData = useNodeGraphStore(state => state.updateNodeData);
   
   // Read directly from Zustand store (NOT from ReactFlow's potentially stale props)
-  const position: Position3D = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.position ?? { x: 0, y: 0, z: 0 });
+  // Use separate selector + fallback to avoid new object creation in selector
+  const positionFromStore = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.position);
+  const position: Position3D = positionFromStore ?? DEFAULT_POSITION;
   const distanceModel: DistanceModel = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.distanceModel ?? 'inverse');
   const rolloff = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.rolloff ?? 1);
   const airAbsorption = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.airAbsorption ?? true);
 
-  // Handlers
+  // Handlers - update both nested position AND flat x/y/z for modulation support
   const handlePositionChange = useCallback((newPos: Partial<Position3D>) => {
-    updateNodeData(id, { position: { ...position, ...newPos } });
+    const updatedPos = { ...position, ...newPos };
+    updateNodeData(id, { 
+      position: updatedPos,
+      // Also store flat x, y, z for modulation routing
+      x: updatedPos.x,
+      y: updatedPos.y,
+      z: updatedPos.z,
+    });
   }, [id, position, updateNodeData]);
+
+  // Individual axis handlers for ModulatableSlider
+  const handleYChange = useCallback((value: number) => {
+    handlePositionChange({ y: value });
+  }, [handlePositionChange]);
 
   const handleDistanceModelChange = useCallback((model: DistanceModel) => {
     updateNodeData(id, { distanceModel: model });
   }, [id, updateNodeData]);
 
-  const handleRolloffChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    updateNodeData(id, { rolloff: Number(e.target.value) });
+  const handleRolloffChange = useCallback((value: number) => {
+    updateNodeData(id, { rolloff: value });
   }, [id, updateNodeData]);
 
   const handleAirAbsorptionToggle = useCallback(() => {
     updateNodeData(id, { airAbsorption: !airAbsorption });
   }, [id, airAbsorption, updateNodeData]);
 
-  // Refs
+  // Refs and state
   const padRef = useRef<HTMLDivElement>(null);
-  const isDragging = useRef(false);
+  const isDraggingRef = useRef(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   // Calculate distance for display
   const distance = Math.sqrt(position.x ** 2 + position.y ** 2 + position.z ** 2);
@@ -96,19 +120,21 @@ export const Spatial3DNodeComponent = memo(({ id, data, selected }: Spatial3DNod
   }, [handlePositionChange]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    isDragging.current = true;
+    isDraggingRef.current = true;
+    setIsDragging(true);
     handlePadInteraction(e);
   }, [handlePadInteraction]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (isDragging.current) {
+      if (isDraggingRef.current) {
         handlePadInteraction(e);
       }
     };
 
     const handleMouseUp = () => {
-      isDragging.current = false;
+      isDraggingRef.current = false;
+      setIsDragging(false);
     };
 
     window.addEventListener('mousemove', handleMouseMove);
@@ -120,16 +146,35 @@ export const Spatial3DNodeComponent = memo(({ id, data, selected }: Spatial3DNod
     };
   }, [handlePadInteraction]);
 
+  // Sync position to SpatialEngine
+  useEffect(() => {
+    const spatialEngine = audioCore.getSpatial();
+    if (spatialEngine) {
+      // Ensure node exists
+      spatialEngine.getOrCreateNode(id);
+      // Update position
+      spatialEngine.setPosition(id, position.x, position.y, position.z);
+      // Update distance model params
+      spatialEngine.setParams(id, {
+        distanceModel,
+        rolloffFactor: rolloff,
+      });
+    }
+  }, [id, position, distanceModel, rolloff]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      const spatialEngine = audioCore.getSpatial();
+      if (spatialEngine) {
+        spatialEngine.removeNode(id);
+      }
+    };
+  }, [id]);
+
   // Convert position to pad coordinates
   const padX = ((position.x / 10) + 1) * 50; // 0-100%
   const padZ = ((-position.z / 10) + 1) * 50; // 0-100% (inverted)
-
-  // Slider styling
-  const sliderClass = `w-full h-1.5 bg-gray-800 rounded-full appearance-none cursor-pointer
-    [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3
-    [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-cyan-500
-    [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(6,182,212,0.5)]
-    [&::-webkit-slider-thumb]:cursor-pointer`;
 
   return (
     <BaseNode
@@ -172,13 +217,15 @@ export const Spatial3DNodeComponent = memo(({ id, data, selected }: Spatial3DNod
               style={{ left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}
             />
 
-            {/* Source indicator */}
+            {/* Source indicator - disable transition during drag to prevent GPU thrashing */}
             <div
-              className="absolute w-4 h-4 bg-cyan-500 rounded-full shadow-[0_0_15px_rgba(6,182,212,0.8)] transition-all duration-75"
+              className={`absolute w-4 h-4 bg-cyan-500 rounded-full shadow-[0_0_15px_rgba(6,182,212,0.8)]
+                ${isDragging ? '' : 'transition-all duration-75'}`}
               style={{ 
                 left: `${padX}%`, 
                 top: `${padZ}%`, 
                 transform: 'translate(-50%, -50%)',
+                willChange: isDragging ? 'left, top' : 'auto',
               }}
             >
               {/* Direction indicator */}
@@ -206,22 +253,19 @@ export const Spatial3DNodeComponent = memo(({ id, data, selected }: Spatial3DNod
           </div>
         </div>
 
-        {/* Y (Height) Slider */}
-        <div className="space-y-1">
-          <div className="flex justify-between items-center">
-            <label className="text-[10px] text-gray-400 uppercase tracking-wider">Height (Y)</label>
-            <span className="text-[10px] text-cyan-400 font-mono">{position.y.toFixed(1)}</span>
-          </div>
-          <input
-            type="range"
-            min="-10"
-            max="10"
-            step="0.1"
-            value={position.y}
-            onChange={(e) => handlePositionChange({ y: Number(e.target.value) })}
-            className={sliderClass}
-          />
-        </div>
+        {/* Y (Height) Slider with Modulation Target */}
+        <ModulatableSlider
+          nodeId={id}
+          paramName="y"
+          label="Height"
+          value={position.y}
+          min={-10}
+          max={10}
+          step={0.1}
+          onChange={handleYChange}
+          accentColor="cyan"
+          formatValue={(v) => v.toFixed(1)}
+        />
 
         {/* Distance Display */}
         <div className="flex items-center justify-between px-2 py-1 bg-black/40 rounded border border-white/5">
@@ -249,22 +293,19 @@ export const Spatial3DNodeComponent = memo(({ id, data, selected }: Spatial3DNod
           </div>
         </div>
 
-        {/* Rolloff */}
-        <div className="space-y-1">
-          <div className="flex justify-between items-center">
-            <label className="text-[10px] text-gray-400 uppercase tracking-wider">Rolloff</label>
-            <span className="text-[10px] text-cyan-400 font-mono">{rolloff.toFixed(2)}</span>
-          </div>
-          <input
-            type="range"
-            min="0"
-            max="5"
-            step="0.1"
-            value={rolloff}
-            onChange={handleRolloffChange}
-            className={sliderClass}
-          />
-        </div>
+        {/* Rolloff with Modulation Target */}
+        <ModulatableSlider
+          nodeId={id}
+          paramName="rolloff"
+          label="Roll"
+          value={rolloff}
+          min={0}
+          max={5}
+          step={0.1}
+          onChange={handleRolloffChange}
+          accentColor="cyan"
+          formatValue={(v) => v.toFixed(2)}
+        />
 
         {/* Air Absorption Toggle */}
         <div className="flex items-center justify-between">

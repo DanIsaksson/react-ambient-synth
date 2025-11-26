@@ -1,12 +1,15 @@
 import { memo, useState, useCallback } from 'react';
 import { BaseNode, HANDLE_PRESETS } from './BaseNode';
 import { useNodeGraphStore } from '../../../store/nodeGraphStore';
+import { ModulatableSlider } from '../shared/ModulatableSlider';
 
 interface KarplusNodeProps {
     id: string;
     data: {
         frequency?: number;
         damping?: number;
+        stiffness?: number;
+        brightness?: number;
         trigger?: boolean;
         [key: string]: any;
     };
@@ -19,18 +22,27 @@ export const KarplusNode = memo(({ id, data, selected }: KarplusNodeProps) => {
     // Read directly from Zustand store (NOT from ReactFlow's potentially stale props)
     const frequency = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.frequency ?? 220);
     const damping = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.damping ?? 0.5);
+    const stiffness = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.stiffness ?? 0);
+    const brightness = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.brightness ?? 0.5);
     
     // Local UI state for visual feedback
     const [isPlucking, setIsPlucking] = useState(false);
 
-    // Update store when frequency changes
-    const handleFrequencyChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-        updateNodeData(id, { frequency: Number(e.target.value) });
+    // Handlers for modulatable parameters
+    const handleFrequencyChange = useCallback((value: number) => {
+        updateNodeData(id, { frequency: value });
     }, [id, updateNodeData]);
 
-    // Update store when damping changes
-    const handleDampingChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-        updateNodeData(id, { damping: Number(e.target.value) });
+    const handleDampingChange = useCallback((value: number) => {
+        updateNodeData(id, { damping: value });
+    }, [id, updateNodeData]);
+
+    const handleStiffnessChange = useCallback((value: number) => {
+        updateNodeData(id, { stiffness: value });
+    }, [id, updateNodeData]);
+
+    const handleBrightnessChange = useCallback((value: number) => {
+        updateNodeData(id, { brightness: value });
     }, [id, updateNodeData]);
 
     const handlePluck = useCallback(() => {
@@ -42,12 +54,6 @@ export const KarplusNode = memo(({ id, data, selected }: KarplusNodeProps) => {
         // Reset trigger after brief delay
         setTimeout(() => updateNodeData(id, { trigger: false }), 50);
     }, [id, updateNodeData]);
-
-    const sliderClass = `w-full h-1.5 bg-gray-800 rounded-full appearance-none cursor-pointer
-        [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3
-        [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-pink-500
-        [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(236,72,153,0.5)]
-        [&::-webkit-slider-thumb]:cursor-pointer`;
 
     return (
         <BaseNode 
@@ -86,38 +92,61 @@ export const KarplusNode = memo(({ id, data, selected }: KarplusNodeProps) => {
                     </svg>
                 </div>
 
-                {/* Frequency Control */}
-                <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                        <label className="text-[10px] text-gray-400 uppercase tracking-wider">Pitch</label>
-                        <span className="text-[10px] text-pink-400 font-mono">{frequency} Hz</span>
-                    </div>
-                    <input
-                        type="range"
-                        min="50"
-                        max="1000"
-                        value={frequency}
-                        onChange={handleFrequencyChange}
-                        className={sliderClass}
-                    />
-                </div>
+                {/* Frequency Control with Modulation Target */}
+                <ModulatableSlider
+                    nodeId={id}
+                    paramName="frequency"
+                    label="Pitch"
+                    value={frequency}
+                    min={50}
+                    max={1000}
+                    onChange={handleFrequencyChange}
+                    unit=" Hz"
+                    logarithmic
+                    accentColor="red"
+                />
 
-                {/* Damping Control */}
-                <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                        <label className="text-[10px] text-gray-400 uppercase tracking-wider">Damping</label>
-                        <span className="text-[10px] text-pink-400 font-mono">{(damping * 100).toFixed(0)}%</span>
-                    </div>
-                    <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.01"
-                        value={damping}
-                        onChange={handleDampingChange}
-                        className={sliderClass}
-                    />
-                </div>
+                {/* Damping Control with Modulation Target */}
+                <ModulatableSlider
+                    nodeId={id}
+                    paramName="damping"
+                    label="Damp"
+                    value={damping}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    onChange={handleDampingChange}
+                    accentColor="red"
+                    formatValue={(v) => `${(v * 100).toFixed(0)}%`}
+                />
+
+                {/* Stiffness Control with Modulation Target */}
+                <ModulatableSlider
+                    nodeId={id}
+                    paramName="stiffness"
+                    label="Stiff"
+                    value={stiffness}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    onChange={handleStiffnessChange}
+                    accentColor="red"
+                    formatValue={(v) => `${(v * 100).toFixed(0)}%`}
+                />
+
+                {/* Brightness Control with Modulation Target */}
+                <ModulatableSlider
+                    nodeId={id}
+                    paramName="brightness"
+                    label="Bright"
+                    value={brightness}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    onChange={handleBrightnessChange}
+                    accentColor="red"
+                    formatValue={(v) => `${(v * 100).toFixed(0)}%`}
+                />
 
                 {/* Pluck Button */}
                 <button 

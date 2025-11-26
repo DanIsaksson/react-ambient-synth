@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback, useRef, useState } from 'react';
-import { ReactFlow, Background, Controls, MiniMap, ReactFlowProvider, useReactFlow, Panel } from '@xyflow/react';
+import { ReactFlow, Background, Controls, MiniMap, ReactFlowProvider, useReactFlow, Panel, type Connection, addEdge } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useNodeGraphStore } from '../../store/nodeGraphStore';
 import { useModulationStore } from '../../store/modulationStore';
@@ -21,14 +21,23 @@ import { EuclideanNode } from './nodes/EuclideanNode';
 import { LFONode } from './nodes/LFONode';
 import { NoiseNode } from './nodes/NoiseNode';
 import { Spatial3DNode } from './nodes/Spatial3DNode';
+import { SampleNode } from './nodes/SampleNode';
 import { SignalEdge } from './edges/SignalEdge';
+import { ModulationEdge } from './edges/ModulationEdge';
+import { ModulationAmountEditor } from './shared/ModulatableSlider';
 
 // ============================================================================
 // NODE & EDGE TYPE REGISTRATION
 // ============================================================================
 
-const edgeTypes = { signal: SignalEdge };
+const edgeTypes = { 
+    signal: SignalEdge,
+    modulation: ModulationEdge,
+};
 const defaultEdgeOptions = { type: 'signal', animated: true };
+
+// Control node types that can be modulation sources
+const CONTROL_NODE_TYPES = ['lfo', 'envelope', 'noise'];
 
 const nodeTypes = {
     oscillator: OscillatorNode,
@@ -43,6 +52,7 @@ const nodeTypes = {
     physics: PhysicsNode,
     texture: TextureNode,
     resonator: ResonatorNode,
+    sample: SampleNode,
     output: OutputNode,
 };
 
@@ -55,13 +65,19 @@ const getId = () => `dndnode_${id++}`;
 
 const NodeEditorContent: React.FC = () => {
     const reactFlowWrapper = useRef<HTMLDivElement>(null);
-    const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode, deleteEdge } = useNodeGraphStore();
+    const { nodes, edges, onNodesChange, onEdgesChange, addNode, deleteEdge } = useNodeGraphStore();
     const { macros, setMacroValue } = useModulationStore();
     const { init, isGraphPlaying } = useAudioStore();
     const { screenToFlowPosition } = useReactFlow();
     
     // Track when audio system is fully initialized (worklet loaded)
     const [isAudioReady, setIsAudioReady] = useState(false);
+    
+    // Track which modulation edge's amount editor is open
+    const [activeModEditor, setActiveModEditor] = useState<{
+        edgeId: string;
+        position: { x: number; y: number };
+    } | null>(null);
 
     // Initialize audio when entering graph mode (async with proper cleanup)
     useEffect(() => {
@@ -98,10 +114,74 @@ const NodeEditorContent: React.FC = () => {
         GraphManager.syncMacros(macros);
     }, [macros]);
 
-    // Delete edge on click (for easy disconnection testing)
-    const onEdgeClick = useCallback((_event: React.MouseEvent, edge: { id: string }) => {
-        console.log('[NodeEditor] Edge clicked, deleting:', edge.id);
-        deleteEdge(edge.id);
+    // Custom onConnect handler that sets modulation edge type for mod-* handles
+    const handleConnect = useCallback((connection: Connection) => {
+        // It's a modulation connection if target handle starts with 'mod-'
+        const isModConnection = connection.targetHandle?.startsWith('mod-');
+        
+        const edgeType = isModConnection ? 'modulation' : 'signal';
+        const edgeData = isModConnection ? {
+            isModulation: true,
+            amount: 0.5,
+            bipolar: true,
+        } : undefined;
+        
+        if (isModConnection) {
+            console.log('[NodeEditor] Creating modulation connection from', connection.source, 'to', connection.target);
+        }
+        
+        // Add the edge to the store using addEdge utility
+        useNodeGraphStore.setState(state => ({
+            edges: addEdge({
+                ...connection,
+                type: edgeType,
+                data: edgeData,
+            }, state.edges),
+        }));
+    }, [nodes]);
+
+    // Connection validation - only allow control nodes to connect to mod-* handles
+    const isValidConnection = useCallback((connection: Connection | { source: string; target: string; sourceHandle?: string | null; targetHandle?: string | null }) => {
+        const sourceNode = nodes.find(n => n.id === connection.source);
+        const targetHandle = connection.targetHandle;
+        
+        // If connecting to a mod-* handle, source must be a control node
+        if (targetHandle?.startsWith('mod-')) {
+            const isControlNode = sourceNode && CONTROL_NODE_TYPES.includes(sourceNode.type || '');
+            if (!isControlNode) {
+                console.log('[NodeEditor] Invalid connection: only control nodes can connect to mod handles');
+                return false;
+            }
+        }
+        
+        return true;
+    }, [nodes]);
+
+    // Handle modulation amount click - open editor
+    const handleModAmountClick = useCallback((edgeId: string, event?: MouseEvent) => {
+        const edge = edges.find(e => e.id === edgeId);
+        if (!edge) return;
+        
+        // Calculate position from edge midpoint or event
+        const x = event?.clientX ?? window.innerWidth / 2;
+        const y = event?.clientY ?? window.innerHeight / 2;
+        
+        setActiveModEditor({ edgeId, position: { x, y } });
+    }, [edges]);
+
+    // Close modulation editor
+    const closeModEditor = useCallback(() => {
+        setActiveModEditor(null);
+    }, []);
+
+    // Handle edge click - delete for signal edges, ignore for modulation (use badge)
+    const onEdgeClick = useCallback((_event: React.MouseEvent, edge: { id: string; type?: string }) => {
+        // For modulation edges, clicking the wire itself does nothing (use badge to edit)
+        // For signal edges, delete on click
+        if (edge.type !== 'modulation') {
+            console.log('[NodeEditor] Signal edge clicked, deleting:', edge.id);
+            deleteEdge(edge.id);
+        }
     }, [deleteEdge]);
 
     const onDragOver: React.DragEventHandler<HTMLDivElement> = useCallback((event) => {
@@ -182,10 +262,15 @@ const NodeEditorContent: React.FC = () => {
             >
                 <ReactFlow
                     nodes={nodes}
-                    edges={edges}
+                    edges={edges.map(edge => 
+                        edge.type === 'modulation' 
+                            ? { ...edge, data: { ...edge.data, onAmountClick: handleModAmountClick } }
+                            : edge
+                    )}
                     onNodesChange={onNodesChange}
                     onEdgesChange={onEdgesChange}
-                    onConnect={onConnect}
+                    onConnect={handleConnect}
+                    isValidConnection={isValidConnection}
                     onEdgeClick={onEdgeClick}
                     onDragOver={onDragOver}
                     onDrop={onDrop}
@@ -300,6 +385,29 @@ const NodeEditorContent: React.FC = () => {
                     background: 'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.3) 100%)',
                 }}
             />
+
+            {/* Modulation Amount Editor Popover */}
+            {activeModEditor && (() => {
+                const edge = edges.find(e => e.id === activeModEditor.edgeId);
+                if (!edge?.data) return null;
+                const edgeData = edge.data as { amount?: number; bipolar?: boolean };
+                return (
+                    <>
+                        {/* Click-outside overlay */}
+                        <div 
+                            className="fixed inset-0 z-40"
+                            onClick={closeModEditor}
+                        />
+                        <ModulationAmountEditor
+                            edgeId={activeModEditor.edgeId}
+                            amount={edgeData.amount ?? 0.5}
+                            bipolar={edgeData.bipolar ?? true}
+                            position={activeModEditor.position}
+                            onClose={closeModEditor}
+                        />
+                    </>
+                );
+            })()}
         </div>
     );
 };

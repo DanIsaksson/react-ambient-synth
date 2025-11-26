@@ -13,12 +13,17 @@ interface SequencerNodeProps {
     selected?: boolean;
 }
 
+// Default values defined OUTSIDE selector to avoid infinite loop
+// (Zustand compares by reference - new array/object = re-render)
+const DEFAULT_STEPS: boolean[] = [true, false, true, false, true, false, true, false];
+
 export const SequencerNode = memo(({ id, data, selected }: SequencerNodeProps) => {
     const updateNodeData = useNodeGraphStore(state => state.updateNodeData);
     
     // Read directly from Zustand store (NOT from ReactFlow's potentially stale props)
     const bpm = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.bpm ?? 120);
-    const steps = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.steps ?? Array(8).fill(false).map((_, i) => i % 2 === 0));
+    const stepsFromStore = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.steps);
+    const steps = stepsFromStore ?? DEFAULT_STEPS;
     const isPlaying = useNodeGraphStore(state => state.nodes.find(n => n.id === id)?.data?.playing ?? false);
     
     // Local UI state for animation

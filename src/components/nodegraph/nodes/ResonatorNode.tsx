@@ -9,6 +9,7 @@
 import { memo, useState, useCallback } from 'react';
 import { BaseNode, HANDLE_PRESETS } from './BaseNode';
 import { useNodeGraphStore } from '../../../store/nodeGraphStore';
+import { ModulatableSlider } from '../shared/ModulatableSlider';
 
 // ===========================================
 // MATERIAL PRESETS
@@ -61,16 +62,16 @@ export const ResonatorNode = memo(({ id, data, selected }: ResonatorNodeProps) =
     updateNodeData(id, { material: mat });
   }, [id, updateNodeData]);
 
-  const handleFrequencyChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    updateNodeData(id, { frequency: Number(e.target.value) });
+  const handleFrequencyChange = useCallback((value: number) => {
+    updateNodeData(id, { frequency: value });
   }, [id, updateNodeData]);
 
-  const handleDecayChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    updateNodeData(id, { decay: Number(e.target.value) });
+  const handleDecayChange = useCallback((value: number) => {
+    updateNodeData(id, { decay: value });
   }, [id, updateNodeData]);
 
-  const handleBrightnessChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    updateNodeData(id, { brightness: Number(e.target.value) });
+  const handleBrightnessChange = useCallback((value: number) => {
+    updateNodeData(id, { brightness: value });
   }, [id, updateNodeData]);
 
   const handleStrike = useCallback(() => {
@@ -82,11 +83,6 @@ export const ResonatorNode = memo(({ id, data, selected }: ResonatorNodeProps) =
     updateNodeData(id, { trigger: true });
     setTimeout(() => updateNodeData(id, { trigger: false }), 50);
   }, [id, material, decay, updateNodeData]);
-
-  // Slider styling with dynamic color
-  const getSliderClass = (_color: string) => `w-full h-1.5 bg-gray-800 rounded-full appearance-none cursor-pointer
-    [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3
-    [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer`;
 
   return (
     <BaseNode
@@ -177,65 +173,47 @@ export const ResonatorNode = memo(({ id, data, selected }: ResonatorNodeProps) =
           ))}
         </div>
 
-        {/* Frequency Control */}
-        <div className="space-y-1">
-          <div className="flex justify-between items-center">
-            <label className="text-[10px] text-gray-400 uppercase tracking-wider">Pitch</label>
-            <span className="text-[10px] font-mono" style={{ color: currentMaterial.color }}>
-              {frequency} Hz
-            </span>
-          </div>
-          <input
-            type="range"
-            min="100"
-            max="2000"
-            value={frequency}
-            onChange={handleFrequencyChange}
-            className={getSliderClass(currentMaterial.color)}
-            style={{
-              // @ts-ignore - webkit vendor prefix
-              '--thumb-color': currentMaterial.color,
-            }}
-          />
-        </div>
+        {/* Frequency Control with Modulation Target */}
+        <ModulatableSlider
+          nodeId={id}
+          paramName="frequency"
+          label="Pitch"
+          value={frequency}
+          min={100}
+          max={2000}
+          onChange={handleFrequencyChange}
+          unit=" Hz"
+          logarithmic
+          accentColor="orange"
+        />
 
-        {/* Decay Control */}
-        <div className="space-y-1">
-          <div className="flex justify-between items-center">
-            <label className="text-[10px] text-gray-400 uppercase tracking-wider">Decay</label>
-            <span className="text-[10px] font-mono" style={{ color: currentMaterial.color }}>
-              {(decay * 100).toFixed(0)}%
-            </span>
-          </div>
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.01"
-            value={decay}
-            onChange={handleDecayChange}
-            className={getSliderClass(currentMaterial.color)}
-          />
-        </div>
+        {/* Decay Control with Modulation Target */}
+        <ModulatableSlider
+          nodeId={id}
+          paramName="decay"
+          label="Decay"
+          value={decay}
+          min={0}
+          max={1}
+          step={0.01}
+          onChange={handleDecayChange}
+          accentColor="orange"
+          formatValue={(v) => `${(v * 100).toFixed(0)}%`}
+        />
 
-        {/* Brightness Control */}
-        <div className="space-y-1">
-          <div className="flex justify-between items-center">
-            <label className="text-[10px] text-gray-400 uppercase tracking-wider">Brightness</label>
-            <span className="text-[10px] font-mono" style={{ color: currentMaterial.color }}>
-              {(brightness * 100).toFixed(0)}%
-            </span>
-          </div>
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.01"
-            value={brightness}
-            onChange={handleBrightnessChange}
-            className={getSliderClass(currentMaterial.color)}
-          />
-        </div>
+        {/* Brightness Control with Modulation Target */}
+        <ModulatableSlider
+          nodeId={id}
+          paramName="brightness"
+          label="Bright"
+          value={brightness}
+          min={0}
+          max={1}
+          step={0.01}
+          onChange={handleBrightnessChange}
+          accentColor="orange"
+          formatValue={(v) => `${(v * 100).toFixed(0)}%`}
+        />
 
         {/* Strike Button */}
         <button

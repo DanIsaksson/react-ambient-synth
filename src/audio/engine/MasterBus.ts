@@ -3,6 +3,7 @@ export class MasterBus {
     private input: GainNode;
     private limiter: DynamicsCompressorNode;
     private output: GainNode;
+    private recordingSendNode: GainNode | null = null;
 
     constructor(context: AudioContext) {
         this.context = context;
@@ -35,7 +36,51 @@ export class MasterBus {
         return this.input;
     }
 
+    /**
+     * Get the output node for connecting recording or analysis chains.
+     * This is after the limiter but before final gain, capturing the mixed audio.
+     */
+    public getOutputNode(): GainNode {
+        return this.output;
+    }
+
+    /**
+     * Connect a recording destination to the output.
+     * Creates a parallel send so recording captures same audio as speakers.
+     */
+    public connectRecordingDestination(destinationInput: AudioNode): void {
+        // Create a send node if not exists
+        if (!this.recordingSendNode) {
+            this.recordingSendNode = this.context.createGain();
+            this.recordingSendNode.gain.value = 1.0;
+            // Tap from after the limiter (output node)
+            this.output.connect(this.recordingSendNode);
+        }
+        
+        // Connect to the recording destination
+        this.recordingSendNode.connect(destinationInput);
+        console.log('[MasterBus] Recording destination connected');
+    }
+
+    /**
+     * Disconnect recording destination.
+     */
+    public disconnectRecordingDestination(destinationInput: AudioNode): void {
+        if (this.recordingSendNode) {
+            try {
+                this.recordingSendNode.disconnect(destinationInput);
+                console.log('[MasterBus] Recording destination disconnected');
+            } catch (e) {
+                // Already disconnected
+            }
+        }
+    }
+
     public setVolume(value: number) {
         this.output.gain.setTargetAtTime(value, this.context.currentTime, 0.1);
+    }
+
+    public getContext(): AudioContext {
+        return this.context;
     }
 }

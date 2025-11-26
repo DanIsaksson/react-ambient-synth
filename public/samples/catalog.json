@@ -1,0 +1,233 @@
+{
+  "version": "1.0.0",
+  "description": "Ambient Flow Sample Library Catalog",
+  "lastUpdated": "2025-11-25",
+  "samples": [
+    {
+      "id": "squeaky-chair",
+      "name": "Squeaky Chair",
+      "category": "ambient",
+      "tags": ["chair", "ambient", "background", "noise"],
+      "url": "/samples/ambient/0 Later - unknown album/00 - 0 Later - ago-squeaky-chair-sfxbackground-noiseambient-noise-149099.ogg",
+      "format": "ogg",
+      "fileSize": 200000
+    },
+    {
+      "id": "car-pass",
+      "name": "Car Pass By",
+      "category": "ambient",
+      "tags": ["car", "traffic", "street", "urban"],
+      "url": "/samples/ambient/0 Later - unknown album/00 - 0 Later - car-pass-by-337871.ogg",
+      "format": "ogg",
+      "fileSize": 150000
+    },
+    {
+      "id": "computer-hum",
+      "name": "Computer Hum",
+      "category": "ambient",
+      "tags": ["computer", "hum", "electronic", "drone"],
+      "url": "/samples/ambient/0 Later - unknown album/00 - 0 Later - computer-hum-102466.ogg",
+      "format": "ogg",
+      "fileSize": 180000
+    },
+    {
+      "id": "underwater-noise",
+      "name": "Underwater Noise",
+      "category": "ambient",
+      "tags": ["underwater", "water", "submerged", "noise"],
+      "url": "/samples/ambient/0 Later - unknown album/00 - 0 Later - underwater-white-noise-46423.ogg",
+      "format": "ogg",
+      "fileSize": 250000
+    },
+    {
+      "id": "bullet-glass",
+      "name": "Bullet on Glass",
+      "category": "percussion",
+      "tags": ["bullet", "glass", "impact", "hit"],
+      "url": "/samples/percussion/Bullet on glass.ogg",
+      "format": "ogg",
+      "fileSize": 50000
+    },
+    {
+      "id": "bullet-metal",
+      "name": "Bullet on Metal",
+      "category": "percussion",
+      "tags": ["bullet", "metal", "impact", "hit"],
+      "url": "/samples/percussion/Bullet on metal.ogg",
+      "format": "ogg",
+      "fileSize": 45000
+    },
+    {
+      "id": "glass-break",
+      "name": "Glass Break",
+      "category": "percussion",
+      "tags": ["glass", "break", "shatter", "crash"],
+      "url": "/samples/percussion/Glass break.ogg",
+      "format": "ogg",
+      "fileSize": 80000
+    },
+    {
+      "id": "gunshot",
+      "name": "Gunshot",
+      "category": "percussion",
+      "tags": ["gun", "shot", "bang", "loud"],
+      "url": "/samples/percussion/Gunshot.ogg",
+      "format": "ogg",
+      "fileSize": 60000
+    },
+    {
+      "id": "footstep-wood",
+      "name": "Footstep on Wood",
+      "category": "texture",
+      "tags": ["footstep", "wood", "walk", "floor"],
+      "url": "/samples/textures/Footstep on wood 3.ogg",
+      "format": "ogg",
+      "fileSize": 40000
+    },
+    {
+      "id": "helicopter-loop",
+      "name": "Helicopter Loop",
+      "category": "texture",
+      "tags": ["helicopter", "loop", "aircraft", "drone"],
+      "url": "/samples/textures/Helicopter loop.ogg",
+      "format": "ogg",
+      "fileSize": 300000
+    },
+    {
+      "id": "metal-knocking",
+      "name": "Metal Knocking",
+      "category": "texture",
+      "tags": ["metal", "knock", "fast", "rhythm"],
+      "url": "/samples/textures/Knocking fast on metal.ogg",
+      "format": "ogg",
+      "fileSize": 120000
+    },
+    {
+      "id": "metallic-footsteps",
+      "name": "Metallic Footsteps Loop",
+      "category": "texture",
+      "tags": ["footsteps", "metal", "loop", "walk"],
+      "url": "/samples/textures/Light metallic footsteps loop.ogg",
+      "format": "ogg",
+      "fileSize": 200000
+    },
+    {
+      "id": "sink-water",
+      "name": "Sink Water Loop",
+      "category": "texture",
+      "tags": ["sink", "water", "loop", "flow"],
+      "url": "/samples/textures/Sink water loop.ogg",
+      "format": "ogg",
+      "fileSize": 280000
+    },
+    {
+      "id": "sink-water-soft",
+      "name": "Sink Water Soft Loop",
+      "category": "texture",
+      "tags": ["sink", "water", "soft", "gentle"],
+      "url": "/samples/textures/Sink water soft loop.ogg",
+      "format": "ogg",
+      "fileSize": 250000
+    },
+    {
+      "id": "sliding-footsteps",
+      "name": "Sliding Footsteps Loop",
+      "category": "texture",
+      "tags": ["footsteps", "sliding", "metal", "loop"],
+      "url": "/samples/textures/Sliding metallic footsteps loop.ogg",
+      "format": "ogg",
+      "fileSize": 220000
+    },
+    {
+      "id": "underwater-loop",
+      "name": "Underwater Loop",
+      "category": "texture",
+      "tags": ["underwater", "loop", "submerged", "ambient"],
+      "url": "/samples/textures/Underwater loop.ogg",
+      "format": "ogg",
+      "fileSize": 350000
+    },
+    {
+      "id": "weapon-trigger",
+      "name": "Weapon Trigger (No Ammo)",
+      "category": "texture",
+      "tags": ["weapon", "trigger", "click", "empty"],
+      "url": "/samples/textures/Weapon trigger no ammo.ogg",
+      "format": "ogg",
+      "fileSize": 15000
+    },
+    {
+      "id": "ghost-whistle",
+      "name": "Ghost Whistle Solo",
+      "category": "tonal",
+      "tags": ["whistle", "ghost", "eerie", "solo"],
+      "url": "/samples/tonal/AudioLab - unknown album/00 - AudioLab - Ghost Whistle Solo .ogg",
+      "format": "ogg",
+      "fileSize": 180000
+    },
+    {
+      "id": "space-voice",
+      "name": "Space Voice 2",
+      "category": "tonal",
+      "tags": ["space", "voice", "sci-fi", "ethereal"],
+      "url": "/samples/tonal/AudioLab - unknown album/00 - AudioLab - Space Voice 2 .ogg",
+      "format": "ogg",
+      "fileSize": 200000
+    },
+    {
+      "id": "choir-1",
+      "name": "Choir 1",
+      "category": "tonal",
+      "tags": ["choir", "voice", "choral", "pad"],
+      "url": "/samples/tonal/Other/00 - 0 Later - Chior(1).ogg",
+      "format": "ogg",
+      "fileSize": 250000
+    },
+    {
+      "id": "choir-2",
+      "name": "Choir 2",
+      "category": "tonal",
+      "tags": ["choir", "voice", "choral", "pad"],
+      "url": "/samples/tonal/Other/00 - 0 Later - Chior.ogg",
+      "format": "ogg",
+      "fileSize": 240000
+    },
+    {
+      "id": "ohh-e3",
+      "name": "Ohh E3",
+      "category": "tonal",
+      "tags": ["voice", "ohh", "vocal", "note"],
+      "url": "/samples/tonal/Other/00 - 0 Later - Ohh E3.ogg",
+      "format": "ogg",
+      "fileSize": 90000,
+      "rootNote": 52
+    },
+    {
+      "id": "voice-house",
+      "name": "Voice House",
+      "category": "tonal",
+      "tags": ["voice", "house", "vocal", "electronic"],
+      "url": "/samples/tonal/Other/00 - 0 Later - Voice House.ogg",
+      "format": "ogg",
+      "fileSize": 180000
+    },
+    {
+      "id": "boomp",
+      "name": "Boomp",
+      "category": "tonal",
+      "tags": ["bass", "boom", "impact", "sub"],
+      "url": "/samples/tonal/Other/00 - 0 Later - boomp.ogg",
+      "format": "ogg",
+      "fileSize": 70000
+    },
+    {
+      "id": "vowels",
+      "name": "Vowels",
+      "category": "tonal",
+      "tags": ["voice", "vowels", "vocal", "texture"],
+      "url": "/samples/tonal/Other/00 - 0 Later - vowels.ogg",
+      "format": "ogg",
+      "fileSize": 150000
+    }
+  ]
+}

@@ -28,6 +28,9 @@ interface BaseNodeProps {
     nodeId?: string; // For delete functionality
     // Future: signalLevel for metering (Phase 6)
     signalLevel?: number;
+    // Mute functionality
+    isMuted?: boolean;
+    onMuteToggle?: () => void;
 }
 
 // ============================================================================
@@ -105,10 +108,35 @@ export const BaseNode: React.FC<BaseNodeProps> = ({
     compact = false,
     nodeId,
     signalLevel = 0,
+    isMuted: externalMuted,
+    onMuteToggle,
 }) => {
     const nodeRef = useRef<HTMLDivElement>(null);
     const colors = TYPE_COLORS[type] || TYPE_COLORS.source;
     const deleteNode = useNodeGraphStore(state => state.deleteNode);
+    const updateNodeData = useNodeGraphStore(state => state.updateNodeData);
+    
+    // Read muted state from store if nodeId is provided
+    const storedMuted = useNodeGraphStore(state => {
+        if (!nodeId) return false;
+        const node = state.nodes.find(n => n.id === nodeId);
+        return node?.data?.isMuted ?? false;
+    });
+    
+    // Use external muted prop if provided, otherwise use stored state
+    const isMuted = externalMuted ?? storedMuted;
+
+    // Mute handler - toggles muted state in store
+    const handleMuteToggle = useCallback((e: React.MouseEvent) => {
+        e.stopPropagation();
+        e.preventDefault();
+        if (onMuteToggle) {
+            onMuteToggle();
+        } else if (nodeId) {
+            // Toggle muted state in store
+            updateNodeData(nodeId, { isMuted: !isMuted });
+        }
+    }, [onMuteToggle, nodeId, isMuted, updateNodeData]);
 
     // Delete handler
     const handleDelete = useCallback((e: React.MouseEvent) => {
@@ -205,13 +233,39 @@ export const BaseNode: React.FC<BaseNodeProps> = ({
                     <span className="text-xs opacity-40">{icon}</span>
                 )}
 
+                {/* Mute button - always visible when nodeId is present */}
+                {nodeId && (
+                    <button
+                        onClick={handleMuteToggle}
+                        className={`w-5 h-5 flex items-center justify-center rounded
+                                   transition-all duration-150
+                                   ${isMuted 
+                                       ? 'text-red-400 bg-red-500/20' 
+                                       : 'text-white/30 hover:text-amber-500 hover:bg-amber-500/20'}`}
+                        title={isMuted ? 'Unmute' : 'Mute'}
+                    >
+                        {isMuted ? (
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M11 5L6 9H2v6h4l5 4V5z" />
+                                <line x1="23" y1="9" x2="17" y2="15" />
+                                <line x1="17" y1="9" x2="23" y2="15" />
+                            </svg>
+                        ) : (
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                                <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                            </svg>
+                        )}
+                    </button>
+                )}
+
                 {/* Delete button */}
                 {nodeId && (
                     <button
                         onClick={handleDelete}
                         className="w-5 h-5 flex items-center justify-center rounded
                                    text-white/30 hover:text-red-500 hover:bg-red-500/20
-                                   transition-all duration-150 ml-1"
+                                   transition-all duration-150"
                         title="Delete node"
                     >
                         <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -227,9 +281,14 @@ export const BaseNode: React.FC<BaseNodeProps> = ({
             </div>
 
             {/* Content - nodrag prevents ReactFlow from intercepting mouse events on interactive elements */}
-            <div className={`nodrag cursor-default ${compact ? 'p-2' : 'p-3'}`}>
+            <div className={`nodrag cursor-default ${compact ? 'p-2' : 'p-3'} ${isMuted ? 'opacity-40 grayscale' : ''} transition-all duration-200`}>
                 {children}
             </div>
+            
+            {/* Muted overlay indicator */}
+            {isMuted && (
+                <div className="absolute inset-0 rounded-2xl pointer-events-none border-2 border-red-500/30 bg-red-900/10" />
+            )}
 
             {/* Signal Level Bar */}
             {signalLevel > 0 && (

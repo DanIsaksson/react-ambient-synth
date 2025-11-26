@@ -1,6 +1,8 @@
 import { MasterBus } from './MasterBus';
 import { AtmosphereEngine } from './AtmosphereEngine';
 import { SynthEngine } from './SynthEngine';
+import { SampleEngine } from './SampleEngine';
+import { SpatialEngine } from './SpatialEngine';
 import type { SoundScene } from '../scenes/SoundScene';
 
 export class AudioCore {
@@ -8,6 +10,8 @@ export class AudioCore {
     private masterBus: MasterBus | null = null;
     private atmosphere: AtmosphereEngine | null = null;
     private synth: SynthEngine | null = null;
+    private samples: SampleEngine | null = null;
+    private spatial: SpatialEngine | null = null;
     private isInitialized: boolean = false;
 
     constructor() {
@@ -28,15 +32,23 @@ export class AudioCore {
         this.masterBus = new MasterBus(this.context);
         this.atmosphere = new AtmosphereEngine(this.context);
         this.synth = new SynthEngine(this.context);
+        this.samples = new SampleEngine(this.context);
+        this.spatial = new SpatialEngine(this.context);
 
         // Connect Engines to MasterBus
         console.log('[AudioCore] Connecting engines to MasterBus...');
         this.atmosphere.connect(this.masterBus.getInputNode());
         this.synth.connect(this.masterBus.getInputNode());
+        this.samples.connect(this.masterBus.getInputNode());
+        this.spatial.connect(this.masterBus.getInputNode());
 
         // Initialize Synth Engine (loads Worklet)
         console.log('[AudioCore] Loading SynthEngine worklet...');
         await this.synth.init();
+
+        // Initialize Sample Engine
+        console.log('[AudioCore] Initializing SampleEngine...');
+        await this.samples.init();
 
         this.isInitialized = true;
         console.log('[AudioCore] ✓ Initialization complete. Context state:', this.context.state);
@@ -56,6 +68,14 @@ export class AudioCore {
 
     public getSynth(): SynthEngine | null {
         return this.synth;
+    }
+
+    public getSamples(): SampleEngine | null {
+        return this.samples;
+    }
+
+    public getSpatial(): SpatialEngine | null {
+        return this.spatial;
     }
 
     /**

@@ -15,6 +15,7 @@ const MODULES: ModuleDef[] = [
     { type: 'oscillator', label: 'OSC', rgb: '6,182,212', iconPath: 'M2 12c2-4 4-8 6 0s4 4 6 0 4-8 6 0' },
     { type: 'karplus', label: 'STR', rgb: '236,72,153', iconPath: 'M12 4v16M8 6v12M16 6v12M5 9v6M19 9v6' },
     { type: 'texture', label: 'TXT', rgb: '34,211,238', iconPath: 'M12 3c-4 0-8 3-8 8s4 8 8 8 8-4 8-8-4-8-8-8zM8 10a1 1 0 100 2 1 1 0 000-2zM16 12a1 1 0 100 2 1 1 0 000-2zM12 14a1 1 0 100 2 1 1 0 000-2z' },
+    { type: 'sample', label: 'SMP', rgb: '6,182,212', iconPath: 'M4 4h16v16H4zM8 16V8l8 4z' },
     { type: 'resonator', label: 'RES', rgb: '167,139,250', iconPath: 'M12 3v18M6 6v12M18 6v12M3 9v6M21 9v6' },
     { type: 'filter', label: 'FLT', rgb: '168,85,247', iconPath: 'M3 12h4l2-6 4 12 2-6h6' },
     { type: 'envelope', label: 'ENV', rgb: '245,158,11', iconPath: 'M3 18l4-10 3 4 4-8 4 14' },

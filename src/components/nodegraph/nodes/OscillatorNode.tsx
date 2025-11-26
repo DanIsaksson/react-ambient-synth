@@ -1,6 +1,7 @@
 import { memo, useCallback } from 'react';
 import { BaseNode, HANDLE_PRESETS } from './BaseNode';
 import { useNodeGraphStore } from '../../../store/nodeGraphStore';
+import { ModulatableSlider } from '../shared/ModulatableSlider';
 
 interface OscillatorNodeProps {
     id: string;
@@ -26,9 +27,9 @@ export const OscillatorNode = memo(({ id, data, selected }: OscillatorNodeProps)
         return node?.data?.waveform ?? 'sine';
     });
 
-    // Handler updates store directly - no local state needed
-    const handleFreqChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-        updateNodeData(id, { freq: Number(e.target.value) });
+    // Handler for frequency change
+    const handleFreqChange = useCallback((value: number) => {
+        updateNodeData(id, { freq: value });
     }, [id, updateNodeData]);
 
     const handleWaveformChange = useCallback((wave: string) => {
@@ -45,26 +46,19 @@ export const OscillatorNode = memo(({ id, data, selected }: OscillatorNodeProps)
             icon="〰️"
         >
             <div className="flex flex-col gap-4">
-                {/* Frequency Control */}
-                <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                        <label className="text-[10px] text-gray-400 uppercase tracking-wider">Frequency</label>
-                        <span className="text-[10px] text-cyan-400 font-mono">{freq} Hz</span>
-                    </div>
-                    <input
-                        type="range"
-                        min="20"
-                        max="2000"
-                        value={freq}
-                        onChange={handleFreqChange}
-                        className="nodrag nopan w-full h-1.5 bg-gray-800 rounded-full appearance-none cursor-pointer
-                            [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3
-                            [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-cyan-500
-                            [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(6,182,212,0.5)]
-                            [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:transition-all
-                            [&::-webkit-slider-thumb]:hover:scale-125"
-                    />
-                </div>
+                {/* Frequency Control with Modulation Target */}
+                <ModulatableSlider
+                    nodeId={id}
+                    paramName="freq"
+                    label="Freq"
+                    value={freq}
+                    min={20}
+                    max={2000}
+                    onChange={handleFreqChange}
+                    unit=" Hz"
+                    logarithmic
+                    accentColor="cyan"
+                />
 
                 {/* Waveform Select */}
                 <div className="space-y-2">

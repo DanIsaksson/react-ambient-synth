@@ -1,11 +1,9 @@
 import React from 'react';
-import { Play, Pause, Volume2, Activity, Wind, Zap, Move } from 'lucide-react';
+import { Volume2, Activity, Wind, Zap, Move } from 'lucide-react';
 import { XYPad } from './XYPad';
 import { PlasmaSlider, GlassPanel, HolographicButton, NeonKnob } from './controls';
 
 interface ControlPanelProps {
-    isPlaying: boolean;
-    onTogglePlay: () => void;
     volume: number;
     onVolumeChange: (val: number) => void;
 
@@ -44,8 +42,6 @@ interface ControlPanelProps {
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = ({
-    isPlaying,
-    onTogglePlay,
     volume,
     onVolumeChange,
     currentScene,
@@ -74,18 +70,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         <div className="flex flex-col gap-6 max-w-4xl mx-auto">
             {/* Header / Global Controls */}
             <GlassPanel accent="cyan" padding="lg" className="flex flex-wrap items-center justify-center gap-8">
-                {/* Play Button */}
-                <HolographicButton
-                    onClick={onTogglePlay}
-                    color={isPlaying ? 'green' : 'cyan'}
-                    size="lg"
-                    pill
-                    isActive={isPlaying}
-                    icon={isPlaying ? <Pause size={24} /> : <Play size={24} />}
-                >
-                    {isPlaying ? 'Stop' : 'Play'}
-                </HolographicButton>
-
                 {/* Scene Selector */}
                 <div className="flex flex-col gap-2">
                     <label className="font-mono text-xs uppercase tracking-wider text-muted-light">

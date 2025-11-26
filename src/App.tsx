@@ -12,16 +12,17 @@ import { Scene3D } from './components/visualizers/Scene3D';
 import { NodeEditor } from './components/nodegraph/NodeEditor';
 import { FloatingVisualizer } from './components/visualizers/FloatingVisualizer';
 import { UnifiedHeader } from './components/controls/UnifiedHeader';
+import { RecordingPanel } from './components/recording';
+import { Visualizer } from './components/visualizer';
 import { Eye } from 'lucide-react';
+import { InstallBanner } from './components/pwa/InstallBanner';
 import './App.css';
 
 function App() {
   const {
-    isPlaying,
     volume,
     currentScene,
     init,
-    togglePlay,
     setVolume,
     setScene,
     setAtmosphereParam
@@ -29,6 +30,8 @@ function App() {
 
   const [viewMode, setViewMode] = useState<'classic' | 'graph'>('classic');
   const [showGravityVisualizer, setShowGravityVisualizer] = useState(false);
+  const [showRecordingPanel, setShowRecordingPanel] = useState(false);
+  const [showVisualizer, setShowVisualizer] = useState(false);
   const gravitySceneRef = useRef<GravityPhasingScene | null>(null);
 
   // Local UI State (mirrors audio state for controlled inputs)
@@ -50,10 +53,6 @@ function App() {
     // but we can pre-load the worklet.
     init();
   }, [init]);
-
-  const handleTogglePlay = () => {
-    togglePlay();
-  };
 
   const handleVolumeChange = (val: number) => {
     setVolume(val);
@@ -176,8 +175,6 @@ function App() {
           {/* Main Controls */}
           <main className="flex-1 flex items-center justify-center pointer-events-auto">
             <ControlPanel
-              isPlaying={isPlaying}
-              onTogglePlay={handleTogglePlay}
               volume={volume}
               onVolumeChange={handleVolumeChange}
 
@@ -247,9 +244,32 @@ function App() {
       <div className="fixed top-0 left-0 right-0 z-50">
         <UnifiedHeader 
           viewMode={viewMode} 
-          onSwitchMode={() => setViewMode(viewMode === 'classic' ? 'graph' : 'classic')} 
+          onSwitchMode={() => setViewMode(viewMode === 'classic' ? 'graph' : 'classic')}
+          onToggleRecording={() => setShowRecordingPanel(!showRecordingPanel)}
+          showRecordingPanel={showRecordingPanel}
+          onToggleVisualizer={() => setShowVisualizer(!showVisualizer)}
+          showVisualizer={showVisualizer}
         />
       </div>
+
+      {/* Floating Recording Panel */}
+      {showRecordingPanel && (
+        <div className="fixed top-14 right-4 z-40 w-80 animate-fade-in">
+          <RecordingPanel 
+            isExpanded={true}
+            onExpandChange={(expanded) => !expanded && setShowRecordingPanel(false)}
+          />
+        </div>
+      )}
+
+      {/* Global Visualizer */}
+      <Visualizer 
+        isOpen={showVisualizer}
+        onClose={() => setShowVisualizer(false)}
+      />
+
+      {/* PWA Install Banner */}
+      <InstallBanner />
     </div>
   );
 }
