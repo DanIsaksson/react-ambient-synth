@@ -69,10 +69,21 @@ export default defineConfig({
       },
     }),
   ],
+  // Add WASM support
+  optimizeDeps: {
+    exclude: ['dsp_core'], // Don't pre-bundle WASM
+  },
+
+  build: {
+    target: 'esnext', // Required for top-level await
+  },
+
   server: {
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
       'Cross-Origin-Embedder-Policy': 'require-corp',
     },
   },
+
+  assetsInclude: ['**/*.wasm'],
 })

@@ -251,6 +251,7 @@ const NodeEditorContent: React.FC = () => {
             {/* Main Canvas Container - Takes remaining space */}
             <div 
                 ref={reactFlowWrapper}
+                data-tour="graph-canvas"
                 style={{
                     flex: 1,
                     minHeight: 0,
@@ -343,7 +344,7 @@ const NodeEditorContent: React.FC = () => {
             </div>
 
             {/* Module Dock - Bottom (flex child, stays at bottom) */}
-            <div style={{ flexShrink: 0, zIndex: 10, position: 'relative' }}>
+            <div data-tour="node-palette" style={{ flexShrink: 0, zIndex: 10, position: 'relative' }}>
                 <ModuleDock />
             </div>
 

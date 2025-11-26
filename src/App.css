@@ -261,3 +261,110 @@ input[type=range]::-webkit-slider-thumb:hover {
   position: relative;
   overflow: hidden;
 }
+
+/* ============================================================================
+   ACCESSIBILITY STYLES
+   ============================================================================ */
+
+/* Screen reader only - visually hidden but accessible */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Focus visible for keyboard navigation */
+:focus-visible {
+  outline: 2px solid #00ff88;
+  outline-offset: 2px;
+}
+
+/* Remove default focus ring when not using keyboard */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* High contrast mode support */
+[data-high-contrast="true"] {
+  --border-color: #fff;
+  --text-color: #fff;
+}
+
+[data-high-contrast="true"] button,
+[data-high-contrast="true"] a {
+  border: 2px solid currentColor !important;
+}
+
+/* ============================================================================
+   REDUCED MOTION STYLES
+   Respects user preference for reduced motion
+   ============================================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Class-based reduced motion (for programmatic control) */
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Keep essential transitions functional but simplified */
+.reduce-motion button,
+.reduce-motion input[type="range"]::-webkit-slider-thumb,
+.reduce-motion .play-button {
+  transition-duration: 0.1s !important;
+}
+
+/* Disable 3D transforms in reduced motion */
+.reduce-motion .visualizer-canvas,
+.reduce-motion canvas {
+  filter: none !important;
+  transform: none !important;
+}
+
+/* Simplify glow effects */
+.reduce-motion [style*="box-shadow"],
+.reduce-motion [style*="text-shadow"] {
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+/* ============================================================================
+   FOCUS TRAP & MODAL ACCESSIBILITY
+   ============================================================================ */
+
+/* Ensure modals are properly announced */
+[role="dialog"],
+[role="alertdialog"] {
+  position: fixed;
+}
+
+/* Inert content behind modals */
+[inert] {
+  pointer-events: none;
+  user-select: none;
+}
+
+[inert] * {
+  pointer-events: none;
+  user-select: none;
+}

@@ -7,23 +7,38 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# Node modules
+# Node / build artifacts
 node_modules
 dist
 dist-ssr
 *.local
 
-# Editor directories and files
+# Rust / Cargo build artifacts (WASM + native)
+src/audio/wasm/target/
+src/audio/wasm/pkg/
+src/audio/wasm/benchmark-output.txt
+src/audio/wasm/benchmark-report.txt
+
+# Vite / coverage / misc build output
+.vite
+coverage
+*.tsbuildinfo
+
+# Editor / IDE
 .vscode/*
 !.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+.idea/
+*.code-workspace
 
-# Context
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Project planning / context
 long-term-plan/
 short-term-plan/
+
+# Dependency / lock backups
+package-lock.json.*
+yarn.lock.*
+pnpm-lock.yaml.*

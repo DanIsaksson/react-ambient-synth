@@ -1094,5 +1094,129 @@ Performance mode, XY pads, mute groups, MIDI integration.
 **Recommendation**: Modulation system is foundational - LFO→Filter.cutoff is a core synthesizer feature.
 
 ---
+
+## 21. WASM DSP Core Integration - COMPLETED
+
+**Date**: November 26, 2025
+
+### Overview
+
+Complete implementation of the WASM DSP core, following the 8-phase plan in `long-term-plan/WASM-DSP-Core-Implementation-Plan/`. This brings high-performance Rust-based audio processing to the application.
+
+### Phases Completed
+
+| Phase | Document | Status |
+|-------|----------|--------|
+| 01 | Architecture | ✅ Complete |
+| 02 | Project Structure | ✅ Complete |
+| 03 | Memory Management | ✅ Complete |
+| 04 | AudioWorklet Bridge | ✅ Complete |
+| 05 | DSP Modules | ✅ Complete |
+| 06 | SIMD Optimization | ✅ Complete |
+| 07 | Testing & Benchmarks | ✅ Complete |
+| 08 | Integration | ✅ Complete |
+
+### DSP Modules Implemented
+
+| Module | Features |
+|--------|----------|
+| **granular.rs** | 64-grain pool, Hanning envelope, linear interpolation, stereo panning, spray/position/density |
+| **convolution.rs** | FFT-based partitioned convolution, overlap-add, IR loading |
+| **spectral.rs** | Phase vocoder freeze/shift, STFT analysis/resynthesis |
+| **filters.rs** | Biquad (LP/HP/BP/Notch/Peak/Shelf), one-pole smoother, stereo wrapper |
+| **delay.rs** | Simple delay, comb, allpass, ping-pong, modulated chorus/flanger |
+| **simd_utils.rs** | WASM SIMD128 intrinsics: scale, clear, mix, copy, find_peak |
+
+### Integration Components
+
+```
+src/audio/wasm/
+├── WasmLoader.ts          # Streaming WASM compilation
+├── build.ps1              # Build + copy to public/
+└── src/                   # Rust DSP modules
+
+src/audio/nodes/
+└── WasmDspNode.ts         # High-level wrapper
+
+src/audio/worklets/
+└── wasm-dsp-processor.js  # AudioWorklet processor
+
+src/audio/engine/
+└── AudioCore.ts           # initWasm(), getWasmNode()
+
+src/store/
+└── useAudioStore.ts       # WASM state + actions
+
+src/components/controls/
+└── WasmControls.tsx       # UI control panel
+```
+
+### Benchmark Results
+
+Native x86_64 benchmarks saved to `src/audio/wasm/benchmark-report.txt`:
+
+| Operation | Time | Notes |
+|-----------|------|-------|
+| SIMD scale_buffer (128) | 20ns | Well within budget |
+| FFT forward (4096) | 38µs | Good for convolution |
+| Biquad filter (128) | 563ns | Excellent |
+| Delay read/write (128) | 729ns | Good |
+| Granular 50 grains (128) | 124µs | **Optimization target** |
+| Full block budget (128) | 1.78µs | Excellent |
+
+**Audio block budget** at 48kHz: ~2.67ms. All operations well within budget except granular at high grain counts.
+
+### CI/CD Setup
+
+- `.github/workflows/wasm-bench.yml` - GitHub Actions for build + regression benchmarks
+- `tests/browser-benchmark.html` - Browser-based WASM performance testing
+- `tests/memory-profile.js` - Memory leak detection utility
+
+### Remaining Items (Deferred)
+
+1. **static mut warnings** - 62 warnings in DSP modules. Fix with `&raw mut` pattern before Rust 2024.
+2. **no_std optimization** - ~20% binary reduction, requires nightly Rust.
+3. **Granular optimization** - SIMD batch processing for grain interpolation.
+
+### Build Commands
+
+```powershell
+npm run build:wasm                    # Full build + copy
+wasm-pack build --target web --release # Direct build
+cargo bench --target x86_64-pc-windows-msvc # Native benchmarks
+```
+
+---
+
+## 22. Current Status Summary
+
+**Date Updated**: November 26, 2025
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Audio Engine | ✅ Complete | Dual-engine (Atmosphere + Synth) |
+| Graph Mode | ✅ Working | All source/effect nodes functional |
+| WASM DSP Core | ✅ **NEW** | Full Rust DSP with SIMD |
+| Benchmarks | ✅ Complete | Criterion + browser tests |
+| Integration | ✅ Complete | WasmLoader → AudioCore → UI |
+| LFO/Envelope | ⚠️ UI Only | Modulation system pending |
+
+---
+
+## 23. Next Session Options
+
+### Option A: Fix static mut Warnings (~2-3 hours)
+Refactor DSP modules to use `&raw mut` pattern. Prevents future Rust 2024 breakage.
+
+### Option B: Granular Optimization (~4-6 hours)
+SIMD batch processing for grain interpolation. Current hotspot at 124µs.
+
+### Option C: Modulation System (~10-12 hours)
+Connect LFO/Envelope nodes to audio parameters. Foundational for synthesis.
+
+### Option D: Phase 9 - The Stage
+Performance mode, XY pads, MIDI. User-facing features.
+
+---
 *Document maintained for context continuity across sessions.*
 

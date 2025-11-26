@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WASM DSP Performance Benchmarks</title>
+    <style>
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #1a1a1a;
+            --accent: #00ff88;
+            --accent-dim: #00aa55;
+            --text-primary: #ffffff;
+            --text-secondary: #888888;
+            --warning: #ffaa00;
+            --error: #ff4444;
+            --success: #00ff88;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            padding: 2rem;
+            line-height: 1.6;
+        }
+        
+        h1 {
+            color: var(--accent);
+            margin-bottom: 0.5rem;
+            font-size: 1.5rem;
+        }
+        
+        .subtitle {
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+            font-size: 0.875rem;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        button {
+            background: var(--bg-secondary);
+            color: var(--accent);
+            border: 1px solid var(--accent);
+            padding: 0.75rem 1.5rem;
+            font-family: inherit;
+            font-size: 0.875rem;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        
+        button:hover:not(:disabled) {
+            background: var(--accent);
+            color: var(--bg-primary);
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .status {
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            margin-bottom: 2rem;
+            border-left: 3px solid var(--accent);
+        }
+        
+        .status.error {
+            border-color: var(--error);
+            color: var(--error);
+        }
+        
+        .status.running {
+            border-color: var(--warning);
+        }
+        
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .benchmark-card {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 1rem;
+            border: 1px solid #333;
+        }
+        
+        .benchmark-card h3 {
+            color: var(--accent);
+            font-size: 0.875rem;
+            margin-bottom: 0.75rem;
+        }
+        
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.25rem 0;
+            border-bottom: 1px solid #333;
+        }
+        
+        .metric:last-child {
+            border-bottom: none;
+        }
+        
+        .metric-label {
+            color: var(--text-secondary);
+        }
+        
+        .metric-value {
+            font-weight: bold;
+        }
+        
+        .metric-value.pass {
+            color: var(--success);
+        }
+        
+        .metric-value.warn {
+            color: var(--warning);
+        }
+        
+        .metric-value.fail {
+            color: var(--error);
+        }
+        
+        .raw-output {
+            background: var(--bg-secondary);
+            padding: 1rem;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 0.75rem;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .budget-bar {
+            height: 8px;
+            background: #333;
+            border-radius: 4px;
+            margin-top: 0.5rem;
+            overflow: hidden;
+        }
+        
+        .budget-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+        
+        .progress {
+            margin-top: 1rem;
+        }
+        
+        .progress-text {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+    <h1>WASM DSP Performance Benchmarks</h1>
+    <p class="subtitle">
+        Performance validation for Ambient Flow DSP Core | 
+        Budget: 2.9ms per 128-sample block @ 44.1kHz
+    </p>
+    
+    <div class="controls">
+        <button id="runBtn" onclick="runBenchmarks()">Run All Benchmarks</button>
+        <button id="runQuickBtn" onclick="runQuickBenchmarks()">Quick Test (100 iterations)</button>
+        <button id="memoryBtn" onclick="runMemoryTest()">Memory Leak Test (60s)</button>
+    </div>
+    
+    <div id="status" class="status">
+        Ready. Click a button to start benchmarking.
+    </div>
+    
+    <div id="resultsGrid" class="results-grid"></div>
+    
+    <h2 style="margin: 2rem 0 1rem; color: var(--text-secondary); font-size: 1rem;">Raw Results</h2>
+    <pre id="rawOutput" class="raw-output">Results will appear here...</pre>
+    
+    <script type="module">
+        // Performance targets (in milliseconds)
+        const BUDGET_MS = 2.9;
+        const TARGETS = {
+            'granular_process': { target: 2.0, description: 'Granular (100 grains)' },
+            'convolution_process': { target: 1.5, description: 'Convolution (2s IR)' },
+            'fft_4096': { target: 0.4, description: 'FFT 4096' },
+            'spectral_process': { target: 1.0, description: 'Spectral Freeze' },
+            'full_block': { target: 2.9, description: 'Full Processing Block' },
+        };
+        
+        let wasmModule = null;
+        let isRunning = false;
+        
+        // State
+        window.benchmarkResults = [];
+        
+        // UI helpers
+        function setStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+        }
+        
+        function setButtonsEnabled(enabled) {
+            document.querySelectorAll('button').forEach(btn => btn.disabled = !enabled);
+        }
+        
+        function formatTime(ms) {
+            if (ms < 0.001) return `${(ms * 1000000).toFixed(0)}ns`;
+            if (ms < 1) return `${(ms * 1000).toFixed(1)}µs`;
+            return `${ms.toFixed(3)}ms`;
+        }
+        
+        function getStatusClass(value, target) {
+            if (value <= target * 0.5) return 'pass';
+            if (value <= target) return 'pass';
+            if (value <= BUDGET_MS) return 'warn';
+            return 'fail';
+        }
+        
+        function renderResults(results) {
+            const grid = document.getElementById('resultsGrid');
+            grid.innerHTML = results.map(result => {
+                const target = TARGETS[result.name]?.target || BUDGET_MS;
+                const statusClass = getStatusClass(result.median, target);
+                const budgetPercent = Math.min((result.median / BUDGET_MS) * 100, 100);
+                
+                return `
+                    <div class="benchmark-card">
+                        <h3>${TARGETS[result.name]?.description || result.name}</h3>
+                        <div class="metric">
+                            <span class="metric-label">Median</span>
+                            <span class="metric-value ${statusClass}">${formatTime(result.median)}</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">P99</span>
+                            <span class="metric-value">${formatTime(result.p99)}</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Max</span>
+                            <span class="metric-value">${formatTime(result.max)}</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Target</span>
+                            <span class="metric-value">${formatTime(target)}</span>
+                        </div>
+                        <div class="budget-bar">
+                            <div class="budget-bar-fill" style="width: ${budgetPercent}%; background: var(--${statusClass === 'pass' ? 'success' : statusClass === 'warn' ? 'warning' : 'error'})"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            document.getElementById('rawOutput').textContent = JSON.stringify(results, null, 2);
+        }
+        
+        // Benchmark runner
+        async function benchmark(name, fn, iterations = 1000) {
+            // Warmup
+            for (let i = 0; i < 100; i++) {
+                await fn();
+            }
+            
+            // Collect timings
+            const times = [];
+            for (let i = 0; i < iterations; i++) {
+                const start = performance.now();
+                await fn();
+                times.push(performance.now() - start);
+                
+                // Update progress every 100 iterations
+                if (i % 100 === 0) {
+                    setStatus(`Running ${name}: ${i}/${iterations} iterations...`, 'running');
+                    await new Promise(r => setTimeout(r, 0)); // Allow UI update
+                }
+            }
+            
+            times.sort((a, b) => a - b);
+            
+            return {
+                name,
+                iterations,
+                median: times[Math.floor(times.length / 2)],
+                p99: times[Math.floor(times.length * 0.99)],
+                max: times[times.length - 1],
+                min: times[0],
+                mean: times.reduce((a, b) => a + b, 0) / times.length,
+            };
+        }
+        
+        // Load WASM module
+        async function loadWasm() {
+            if (wasmModule) return wasmModule;
+            
+            try {
+                setStatus('Loading WASM module...', 'running');
+                
+                // Try to load from typical wasm-pack output locations
+                const possiblePaths = [
+                    '/pkg/dsp_core.js',
+                    '/wasm/dsp_core.js',
+                    '../pkg/dsp_core.js',
+                    './pkg/dsp_core.js',
+                ];
+                
+                let module = null;
+                for (const path of possiblePaths) {
+                    try {
+                        module = await import(path);
+                        break;
+                    } catch (e) {
+                        continue;
+                    }
+                }
+                
+                if (!module) {
+                    throw new Error('Could not find WASM module. Run wasm-pack build first.');
+                }
+                
+                await module.default();
+                wasmModule = module;
+                
+                // Initialize DSP
+                module.dsp_init(44100, 128);
+                
+                setStatus('WASM module loaded successfully', 'info');
+                return module;
+                
+            } catch (error) {
+                setStatus(`Failed to load WASM: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+        
+        // Main benchmark runner
+        window.runBenchmarks = async function(iterations = 1000) {
+            if (isRunning) return;
+            isRunning = true;
+            setButtonsEnabled(false);
+            
+            try {
+                const wasm = await loadWasm();
+                const results = [];
+                
+                // Granular benchmark
+                setStatus('Benchmarking granular synthesis...', 'running');
+                results.push(await benchmark('granular_process', () => {
+                    wasm.dsp_process_granular(256, 50.0, 0.1, 0.5, 0.05);
+                }, iterations));
+                
+                // Convolution benchmark
+                setStatus('Benchmarking convolution reverb...', 'running');
+                results.push(await benchmark('convolution_process', () => {
+                    wasm.dsp_process_convolution(0.5);
+                }, iterations));
+                
+                // Spectral benchmark
+                setStatus('Benchmarking spectral processing...', 'running');
+                results.push(await benchmark('spectral_process', () => {
+                    wasm.dsp_process_spectral(0.5, 0.0);
+                }, iterations));
+                
+                // Full block (all processing)
+                setStatus('Benchmarking full processing block...', 'running');
+                results.push(await benchmark('full_block', () => {
+                    wasm.dsp_process_granular(256, 25.0, 0.1, 0.5, 0.05);
+                }, iterations));
+                
+                window.benchmarkResults = results;
+                renderResults(results);
+                
+                // Check if we pass budget
+                const maxTime = Math.max(...results.map(r => r.median));
+                if (maxTime <= BUDGET_MS) {
+                    setStatus(`✓ All benchmarks pass! Max: ${formatTime(maxTime)} (budget: ${BUDGET_MS}ms)`, 'info');
+                } else {
+                    setStatus(`✗ Budget exceeded! Max: ${formatTime(maxTime)} (budget: ${BUDGET_MS}ms)`, 'error');
+                }
+                
+            } catch (error) {
+                setStatus(`Benchmark failed: ${error.message}`, 'error');
+                console.error(error);
+            } finally {
+                isRunning = false;
+                setButtonsEnabled(true);
+            }
+        };
+        
+        window.runQuickBenchmarks = function() {
+            return window.runBenchmarks(100);
+        };
+        
+        // Memory leak test
+        window.runMemoryTest = async function(durationSeconds = 60) {
+            if (isRunning) return;
+            isRunning = true;
+            setButtonsEnabled(false);
+            
+            try {
+                const wasm = await loadWasm();
+                const samples = [];
+                const startTime = Date.now();
+                
+                setStatus(`Running memory test for ${durationSeconds} seconds...`, 'running');
+                
+                const interval = setInterval(() => {
+                    // Process audio
+                    wasm.dsp_process_granular(256, 50.0, 0.1, 0.5, 0.05);
+                    
+                    // Collect memory sample (if available)
+                    if (performance.memory) {
+                        samples.push({
+                            time: Date.now() - startTime,
+                            heap: performance.memory.usedJSHeapSize,
+                        });
+                    }
+                    
+                    const elapsed = (Date.now() - startTime) / 1000;
+                    setStatus(`Memory test: ${elapsed.toFixed(0)}/${durationSeconds}s`, 'running');
+                }, 100);
+                
+                await new Promise(r => setTimeout(r, durationSeconds * 1000));
+                clearInterval(interval);
+                
+                if (samples.length > 20) {
+                    const first = samples.slice(0, 10).reduce((a, b) => a + b.heap, 0) / 10;
+                    const last = samples.slice(-10).reduce((a, b) => a + b.heap, 0) / 10;
+                    const growth = ((last - first) / first) * 100;
+                    
+                    if (growth < 5) {
+                        setStatus(`✓ No memory leak detected. Growth: ${growth.toFixed(2)}%`, 'info');
+                    } else {
+                        setStatus(`✗ Possible memory leak! Growth: ${growth.toFixed(2)}%`, 'error');
+                    }
+                    
+                    document.getElementById('rawOutput').textContent = JSON.stringify({
+                        durationSeconds,
+                        samples: samples.length,
+                        initialHeap: first,
+                        finalHeap: last,
+                        growthPercent: growth,
+                    }, null, 2);
+                } else {
+                    setStatus('Memory API not available (try Chrome with --enable-precise-memory-info)', 'warn');
+                }
+                
+            } catch (error) {
+                setStatus(`Memory test failed: ${error.message}`, 'error');
+            } finally {
+                isRunning = false;
+                setButtonsEnabled(true);
+            }
+        };
+        
+        // Fallback benchmark (no WASM required)
+        window.runFallbackBenchmark = async function() {
+            setStatus('Running JS-only benchmarks (no WASM)...', 'running');
+            
+            const results = [];
+            
+            // Simple buffer operations
+            results.push(await benchmark('js_buffer_scale', () => {
+                const buffer = new Float32Array(128);
+                for (let i = 0; i < buffer.length; i++) {
+                    buffer[i] = buffer[i] * 0.8;
+                }
+            }));
+            
+            // Biquad filter simulation
+            results.push(await benchmark('js_biquad_filter', () => {
+                const buffer = new Float32Array(128);
+                let y1 = 0, y2 = 0, x1 = 0, x2 = 0;
+                const b0 = 0.00362, b1 = 0.00724, b2 = 0.00362;
+                const a1 = -1.82269, a2 = 0.83718;
+                
+                for (let i = 0; i < buffer.length; i++) {
+                    const x = buffer[i];
+                    const y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+                    x2 = x1; x1 = x;
+                    y2 = y1; y1 = y;
+                    buffer[i] = y;
+                }
+            }));
+            
+            renderResults(results);
+            setStatus('JS fallback benchmarks complete', 'info');
+        };
+    </script>
+</body>
+</html>

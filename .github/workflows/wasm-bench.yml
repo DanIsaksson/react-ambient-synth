@@ -1,0 +1,183 @@
+# WASM DSP Performance Testing Workflow
+# 
+# Runs benchmarks on every push and PR to detect performance regressions.
+# Uses Criterion for Rust benchmarks and compares against baseline.
+
+name: WASM Performance
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'src/audio/wasm/**'
+      - '.github/workflows/wasm-bench.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'src/audio/wasm/**'
+  # Allow manual trigger
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: '-C target-feature=+simd128'
+
+jobs:
+  # ============================================================================
+  # BUILD AND TEST
+  # ============================================================================
+  build:
+    name: Build WASM
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      
+      - name: Install wasm-pack
+        run: cargo install wasm-pack
+      
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: 'src/audio/wasm -> target'
+      
+      - name: Build WASM (Debug)
+        working-directory: src/audio/wasm
+        run: cargo build --target wasm32-unknown-unknown
+      
+      - name: Build WASM (Release)
+        working-directory: src/audio/wasm
+        run: cargo build --release --target wasm32-unknown-unknown
+      
+      - name: Check binary size
+        working-directory: src/audio/wasm
+        run: |
+          echo "## WASM Binary Size" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          ls -lh target/wasm32-unknown-unknown/release/*.wasm | awk '{print "| " $9 " | " $5 " |"}' >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================================
+  # NATIVE BENCHMARKS
+  # ============================================================================
+  benchmark:
+    name: Native Benchmarks
+    runs-on: ubuntu-latest
+    needs: build
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: 'src/audio/wasm -> target'
+      
+      - name: Run benchmarks
+        working-directory: src/audio/wasm
+        run: cargo bench --no-fail-fast -- --noplot 2>&1 | tee benchmark-output.txt
+      
+      - name: Parse benchmark results
+        working-directory: src/audio/wasm
+        run: |
+          echo "## Benchmark Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Benchmark | Time |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|------|" >> $GITHUB_STEP_SUMMARY
+          grep -E "^[a-z_/]+\s+time:" benchmark-output.txt | sed 's/time:/|/' | sed 's/$/|/' >> $GITHUB_STEP_SUMMARY || true
+      
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: src/audio/wasm/target/criterion/
+          if-no-files-found: ignore
+
+  # ============================================================================
+  # PERFORMANCE REGRESSION CHECK
+  # ============================================================================
+  regression-check:
+    name: Regression Check
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+      
+      - name: Checkout base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.base_ref }}
+          path: base
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: 'src/audio/wasm -> target'
+      
+      - name: Run baseline benchmarks
+        working-directory: base/src/audio/wasm
+        run: cargo bench -- --save-baseline base --noplot 2>&1 || true
+        continue-on-error: true
+      
+      - name: Run PR benchmarks
+        working-directory: src/audio/wasm
+        run: cargo bench -- --save-baseline pr --noplot 2>&1 || true
+      
+      - name: Compare benchmarks
+        working-directory: src/audio/wasm
+        run: |
+          echo "## Performance Comparison" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Comparing PR against base branch..." >> $GITHUB_STEP_SUMMARY
+          cargo bench -- --baseline base 2>&1 | head -100 >> $GITHUB_STEP_SUMMARY || echo "No baseline to compare" >> $GITHUB_STEP_SUMMARY
+        continue-on-error: true
+
+  # ============================================================================
+  # WASM-PACK BUILD
+  # ============================================================================
+  wasm-pack:
+    name: wasm-pack Build
+    runs-on: ubuntu-latest
+    needs: build
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      
+      - name: Install wasm-pack
+        run: cargo install wasm-pack
+      
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: 'src/audio/wasm -> target'
+      
+      - name: Build with wasm-pack
+        working-directory: src/audio/wasm
+        run: wasm-pack build --release --target web
+      
+      - name: Upload pkg artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-pkg
+          path: src/audio/wasm/pkg/

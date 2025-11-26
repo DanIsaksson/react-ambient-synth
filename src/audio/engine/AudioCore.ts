@@ -3,6 +3,8 @@ import { AtmosphereEngine } from './AtmosphereEngine';
 import { SynthEngine } from './SynthEngine';
 import { SampleEngine } from './SampleEngine';
 import { SpatialEngine } from './SpatialEngine';
+import { WasmDspNode } from '../nodes/WasmDspNode';
+import { wasmLoader } from '../wasm/WasmLoader';
 import type { SoundScene } from '../scenes/SoundScene';
 
 export class AudioCore {
@@ -12,7 +14,9 @@ export class AudioCore {
     private synth: SynthEngine | null = null;
     private samples: SampleEngine | null = null;
     private spatial: SpatialEngine | null = null;
+    private wasmNode: WasmDspNode | null = null;
     private isInitialized: boolean = false;
+    private useJsFallback: boolean = false;
 
     constructor() {
         // Lazy initialization on user interaction
@@ -193,9 +197,103 @@ export class AudioCore {
     public muteClassicMode(muted: boolean) {
         this.atmosphere?.setMuted(muted);
     }
+
+    // ========================================================================
+    // WASM DSP INTEGRATION
+    // ========================================================================
+
+    /**
+     * Initialize WASM DSP module.
+     * Call this after init() when WASM processing is needed.
+     * 
+     * @returns true if WASM initialized successfully, false if fallback is active
+     */
+    public async initWasm(): Promise<boolean> {
+        if (this.wasmNode) {
+            console.log('[AudioCore] WASM already initialized');
+            return true;
+        }
+
+        if (!this.context) {
+            console.warn('[AudioCore] Cannot init WASM: AudioContext not ready');
+            return false;
+        }
+
+        try {
+            console.log('[AudioCore] Initializing WASM DSP...');
+            
+            // Configure loader with current context settings
+            wasmLoader.configure({
+                sampleRate: this.context.sampleRate,
+                bufferSize: 128,
+            });
+
+            // Pre-load WASM module
+            await wasmLoader.load();
+
+            // Create and initialize the WASM node
+            this.wasmNode = new WasmDspNode(this.context);
+            await this.wasmNode.init();
+
+            console.log('[AudioCore] ✓ WASM DSP initialized successfully');
+            return true;
+
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            console.warn('[AudioCore] WASM init failed, using JS fallback:', message);
+            this.useJsFallback = true;
+            return false;
+        }
+    }
+
+    /**
+     * Get the WASM DSP node for direct control.
+     */
+    public getWasmNode(): WasmDspNode | null {
+        return this.wasmNode;
+    }
+
+    /**
+     * Check if WASM DSP is ready for use.
+     */
+    public isWasmReady(): boolean {
+        return this.wasmNode?.isReady() ?? false;
+    }
+
+    /**
+     * Check if using JS fallback (WASM failed to load).
+     */
+    public isUsingJsFallback(): boolean {
+        return this.useJsFallback;
+    }
+
+    /**
+     * Connect WASM node to the audio graph.
+     * Typical usage: source -> wasmNode -> masterBus
+     * 
+     * @param source - Source node to process through WASM
+     */
+    public connectWasmToGraph(source: AudioNode): void {
+        if (!this.wasmNode || !this.masterBus) {
+            console.warn('[AudioCore] Cannot connect WASM: not initialized');
+            return;
+        }
+
+        try {
+            source.connect(this.wasmNode.getNode());
+            this.wasmNode.getNode().connect(this.masterBus.getInputNode());
+            console.log('[AudioCore] WASM node connected to audio graph');
+        } catch (error) {
+            console.error('[AudioCore] Failed to connect WASM node:', error);
+        }
+    }
 }
 
 export const audioCore = new AudioCore();
+
+// Re-export WASM types for convenience
+export { EffectType } from '../nodes/WasmDspNode';
+export type { GranularParams, ConvolutionParams, SpectralParams } from '../nodes/WasmDspNode';
 
 // DIAGNOSTIC: Expose to window for console testing
 (window as any).audioCore = audioCore;

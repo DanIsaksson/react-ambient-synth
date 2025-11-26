@@ -18,6 +18,7 @@ export const OutputNode = memo(({ id, selected }: OutputNodeProps) => {
     };
 
     return (
+        <div data-tour="output-node">
         <BaseNode 
             title="Output" 
             type="output" 
@@ -64,5 +65,6 @@ export const OutputNode = memo(({ id, selected }: OutputNodeProps) => {
                 <div className="text-[9px] text-gray-500 uppercase tracking-wider">Master</div>
             </div>
         </BaseNode>
+        </div>
     );
 });

@@ -16,6 +16,10 @@ import { RecordingPanel } from './components/recording';
 import { Visualizer } from './components/visualizer';
 import { Eye } from 'lucide-react';
 import { InstallBanner } from './components/pwa/InstallBanner';
+import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { useOnboarding } from './hooks/useOnboarding';
+import { WelcomeModal, OnboardingTour, OnboardingStyles } from './components/onboarding';
 import './App.css';
 
 function App() {
@@ -32,7 +36,67 @@ function App() {
   const [showGravityVisualizer, setShowGravityVisualizer] = useState(false);
   const [showRecordingPanel, setShowRecordingPanel] = useState(false);
   const [showVisualizer, setShowVisualizer] = useState(false);
+  const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
   const gravitySceneRef = useRef<GravityPhasingScene | null>(null);
+
+  // Onboarding state
+  const {
+    isFirstVisit,
+    shouldShowClassicTour,
+    shouldShowGraphTour,
+    completeWelcome,
+    completeClassicTour,
+    completeGraphTour,
+    skipOnboarding,
+  } = useOnboarding();
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [runClassicTour, setRunClassicTour] = useState(false);
+  const [runGraphTour, setRunGraphTour] = useState(false);
+
+  // Show welcome modal on first visit
+  useEffect(() => {
+    if (isFirstVisit) {
+      // Small delay to let the app render first
+      const timer = setTimeout(() => setShowWelcome(true), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isFirstVisit]);
+
+  // Trigger tour when switching modes (if not seen)
+  useEffect(() => {
+    if (viewMode === 'classic' && shouldShowClassicTour) {
+      setRunClassicTour(true);
+    } else if (viewMode === 'graph' && shouldShowGraphTour) {
+      setRunGraphTour(true);
+    }
+  }, [viewMode, shouldShowClassicTour, shouldShowGraphTour]);
+
+  // Keyboard shortcuts
+  useKeyboardShortcuts({
+    viewMode,
+    onToggleVisualizer: () => setShowVisualizer(v => !v),
+    onShowHelp: () => setShowKeyboardHelp(true),
+  });
+
+  // Welcome modal handlers
+  const handleStartClassic = () => {
+    setShowWelcome(false);
+    completeWelcome();
+    setViewMode('classic');
+    setRunClassicTour(true);
+  };
+
+  const handleStartGraph = () => {
+    setShowWelcome(false);
+    completeWelcome();
+    setViewMode('graph');
+    setRunGraphTour(true);
+  };
+
+  const handleSkipOnboarding = () => {
+    setShowWelcome(false);
+    skipOnboarding();
+  };
 
   // Local UI State (mirrors audio state for controlled inputs)
   const [rumble, setRumble] = useState(0.5);
@@ -270,6 +334,40 @@ function App() {
 
       {/* PWA Install Banner */}
       <InstallBanner />
+
+      {/* Keyboard Shortcuts Help */}
+      <KeyboardShortcutsModal
+        isOpen={showKeyboardHelp}
+        onClose={() => setShowKeyboardHelp(false)}
+      />
+
+      {/* Onboarding */}
+      <OnboardingStyles />
+      <WelcomeModal
+        isOpen={showWelcome}
+        onClose={() => setShowWelcome(false)}
+        onStartClassic={handleStartClassic}
+        onStartGraph={handleStartGraph}
+        onSkip={handleSkipOnboarding}
+      />
+      <OnboardingTour
+        tourType="classic"
+        isActive={runClassicTour}
+        onComplete={() => {
+          setRunClassicTour(false);
+          completeClassicTour();
+        }}
+        onSkip={() => setRunClassicTour(false)}
+      />
+      <OnboardingTour
+        tourType="graph"
+        isActive={runGraphTour}
+        onComplete={() => {
+          setRunGraphTour(false);
+          completeGraphTour();
+        }}
+        onSkip={() => setRunGraphTour(false)}
+      />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { audioCore } from '../audio/engine/AudioCore';
+import { audioCore, EffectType } from '../audio/engine/AudioCore';
+import type { GranularParams, ConvolutionParams, SpectralParams } from '../audio/engine/AudioCore';
 import type { AudioMessage } from '../audio/types';
 import type { SoundScene } from '../audio/scenes/SoundScene';
 
@@ -14,6 +15,12 @@ interface AudioState {
     volume: number;
     currentScene: string;
 
+    // WASM DSP state
+    wasmReady: boolean;
+    wasmLoading: boolean;
+    wasmError: string | null;
+    wasmEffect: number;
+
     // Actions
     init: () => Promise<void>;
     togglePlay: () => void;           // Legacy: toggles both
@@ -24,9 +31,19 @@ interface AudioState {
     setAtmosphereParam: (param: string, value: number) => void;
     sendMessage: (msg: AudioMessage) => void;
 
+    // WASM Actions
+    initWasm: () => Promise<boolean>;
+    setWasmEffect: (effect: number) => void;
+    setGranularParams: (params: Partial<GranularParams>) => void;
+    setConvolutionParams: (params: Partial<ConvolutionParams>) => void;
+    setSpectralParams: (params: Partial<SpectralParams>) => void;
+
     // Direct Access (use carefully)
     getCore: () => typeof audioCore;
 }
+
+// Re-export effect types for convenience
+export { EffectType };
 
 export const useAudioStore = create<AudioState>((set, get) => ({
     isPlaying: false,
@@ -34,6 +51,12 @@ export const useAudioStore = create<AudioState>((set, get) => ({
     isGraphPlaying: false,
     volume: 0.8,
     currentScene: 'None',
+
+    // WASM DSP initial state
+    wasmReady: false,
+    wasmLoading: false,
+    wasmError: null,
+    wasmEffect: EffectType.BYPASS,
 
     init: async () => {
         await audioCore.init();
@@ -119,6 +142,88 @@ export const useAudioStore = create<AudioState>((set, get) => ({
         const synth = audioCore.getSynth();
         if (synth) {
             synth.sendMessage(msg);
+        }
+    },
+
+    // ========================================================================
+    // WASM DSP ACTIONS
+    // ========================================================================
+
+    /**
+     * Initialize WASM DSP module.
+     * Call this when WASM processing is needed.
+     */
+    initWasm: async () => {
+        const { wasmReady, wasmLoading } = get();
+        
+        // Skip if already ready or loading
+        if (wasmReady || wasmLoading) {
+            return wasmReady;
+        }
+
+        set({ wasmLoading: true, wasmError: null });
+
+        try {
+            const success = await audioCore.initWasm();
+            set({ 
+                wasmReady: success, 
+                wasmLoading: false,
+                wasmError: success ? null : 'WASM initialization failed',
+            });
+            return success;
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            set({ 
+                wasmReady: false, 
+                wasmLoading: false, 
+                wasmError: message,
+            });
+            return false;
+        }
+    },
+
+    /**
+     * Set the active WASM effect type.
+     * Use EffectType.GRANULAR, EffectType.CONVOLUTION, etc.
+     */
+    setWasmEffect: (effect: number) => {
+        const wasmNode = audioCore.getWasmNode();
+        if (wasmNode) {
+            // Cast to EffectType - the value is validated at runtime
+            wasmNode.setEffect(effect as typeof EffectType[keyof typeof EffectType]);
+            set({ wasmEffect: effect });
+        } else {
+            console.warn('[useAudioStore] Cannot set effect: WASM not initialized');
+        }
+    },
+
+    /**
+     * Update granular synthesis parameters.
+     */
+    setGranularParams: (params: Partial<GranularParams>) => {
+        const wasmNode = audioCore.getWasmNode();
+        if (wasmNode) {
+            wasmNode.setGranularParams(params);
+        }
+    },
+
+    /**
+     * Update convolution reverb parameters.
+     */
+    setConvolutionParams: (params: Partial<ConvolutionParams>) => {
+        const wasmNode = audioCore.getWasmNode();
+        if (wasmNode) {
+            wasmNode.setConvolutionParams(params);
+        }
+    },
+
+    /**
+     * Update spectral effect parameters.
+     */
+    setSpectralParams: (params: Partial<SpectralParams>) => {
+        const wasmNode = audioCore.getWasmNode();
+        if (wasmNode) {
+            wasmNode.setSpectralParams(params);
         }
     },
 

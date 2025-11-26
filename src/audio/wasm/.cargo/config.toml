@@ -1,0 +1,13 @@
+# src/audio/wasm/.cargo/config.toml
+# 
+# NOTE: Profile settings (LTO, opt-level, etc.) are in Cargo.toml
+# This file only sets the default target and SIMD features.
+
+[build]
+target = "wasm32-unknown-unknown"
+
+[target.wasm32-unknown-unknown]
+rustflags = [
+    # Enable SIMD for vectorized DSP operations
+    "-C", "target-feature=+simd128",
+]

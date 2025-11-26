@@ -1,0 +1,54 @@
+[package]
+name = "dsp_core"
+version = "0.1.0"
+edition = "2021"
+authors = ["Ambient Flow Team"]
+description = "High-performance WASM DSP core for Ambient Flow"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib"]  # Required for WASM
+
+[dependencies]
+# DSP fundamentals - no_std compatible
+dasp_sample = "0.11"
+dasp_frame = "0.11"
+dasp_signal = "0.11"
+dasp_ring_buffer = "0.11"
+dasp_interpolate = "0.11"
+dasp_envelope = "0.11"
+
+# FFT for spectral processing
+rustfft = { version = "6.1", default-features = false }
+
+# Random number generation (for noise, grain scatter)
+fastrand = "2.0"
+
+# Math functions for no_std (powf, tanhf, log10f, etc.)
+libm = "0.2"
+
+[dev-dependencies]
+# For benchmarking
+criterion = "0.5"
+
+[profile.release]
+# Maximum optimization
+opt-level = 3
+# Link-time optimization
+lto = true
+# Single codegen unit for better optimization
+codegen-units = 1
+# Remove debug info
+debug = false
+# Strip symbols
+strip = true
+# Abort on panic (smaller binary, no unwinding)
+panic = "abort"
+
+[profile.dev]
+# Faster dev builds
+opt-level = 1
+
+[[bench]]
+name = "dsp_benchmarks"
+harness = false

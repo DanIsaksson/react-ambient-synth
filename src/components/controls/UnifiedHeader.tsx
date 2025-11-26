@@ -44,6 +44,7 @@ export const UnifiedHeader: React.FC<UnifiedHeaderProps> = ({
 
     return (
         <div 
+            data-tour="header"
             style={{
                 height: 48,
                 flexShrink: 0,
@@ -121,6 +122,7 @@ export const UnifiedHeader: React.FC<UnifiedHeaderProps> = ({
 
                 {/* Graph Mode Toggle */}
                 <button
+                    data-tour="graph-play"
                     onClick={toggleGraph}
                     style={{
                         display: 'flex',
@@ -237,6 +239,7 @@ export const UnifiedHeader: React.FC<UnifiedHeaderProps> = ({
                 </span>
                 
                 <button
+                    data-tour="mode-switch"
                     onClick={onSwitchMode}
                     style={{
                         display: 'flex',
